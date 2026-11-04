@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<title>Анализы семьи</title>
+<style>
+:root{--bg:#f1f5f4;--card:#fff;--tx:#10201e;--mu:#6b7c79;--ac:#0f766e;--ok:#16a34a;--hi:#dc2626;--lo:#2563eb;--bd:#dfe8e6;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root{--bg:#0b1514;--card:#13211f;--tx:#e6f0ee;--mu:#8aa09c;--ac:#2dd4bf;--bd:#203532}}
+*{box-sizing:border-box}html,body{margin:0}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh}
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 16px 6px}
+h1{font-size:20px;margin:0}h3{margin:0 0 6px;font-size:15px;color:var(--ac)}
+.tabs{display:flex;gap:8px;overflow-x:auto;padding:8px 16px}
+.tabs::-webkit-scrollbar{display:none}
+.chip{flex:none;padding:8px 14px;border-radius:20px;background:var(--card);border:1px solid var(--bd);color:var(--tx);font-size:14px;cursor:pointer}
+.chip.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.sub .chip{font-size:13px;padding:6px 12px}
+main{padding:6px 16px 90px;max-width:720px;margin:auto}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px 14px;margin:10px 0}
+.row{display:grid;grid-template-columns:1.4fr 1fr 1fr 18px;gap:6px;align-items:center;padding:7px 0;border-top:1px solid var(--bd);font-size:14px}
+.row span{font-weight:600}.row i{font-style:normal;color:var(--mu);font-size:12px}
+.row a{color:var(--mu);cursor:pointer;text-align:center}
+.row.hi span{color:var(--hi)}.row.lo span{color:var(--lo)}.row.ok span{color:var(--ok)}
+svg{width:100%;height:70px;display:block}.band{fill:var(--ok);opacity:.13}.ln{stroke:var(--ac);stroke-width:2}
+circle.ok{fill:var(--ok)}circle.hi{fill:var(--hi)}circle.lo{fill:var(--lo)}
+.empty,.mu{color:var(--mu);font-size:13px}
+.adv{border-left:4px solid var(--ok)}.adv.hi{border-color:var(--hi)}.adv.lo{border-color:var(--lo)}
+.fab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;background:var(--ac);color:#fff;border:0;font-size:30px;box-shadow:0 4px 14px #0004;cursor:pointer}
+button,input,textarea,select{font:inherit}
+input,textarea{width:100%;padding:10px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);margin:4px 0}
+.btn{padding:10px 16px;border:0;border-radius:10px;background:var(--ac);color:#fff;cursor:pointer;font-weight:600}
+.btn.g{background:var(--card);color:var(--tx);border:1px solid var(--bd)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#lock,#modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:20px;z-index:5}
+#modal{background:#0009;align-items:flex-end;padding:0}
+#modal .box{background:var(--card);width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:16px;max-height:92vh;overflow:auto}
+#lock .box{width:100%;max-width:340px;text-align:center}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<div id="lock"><div class="box">
+<div style="font-size:48px">🩺</div><h1>Анализы семьи</h1>
+<p class="mu" id="lt"></p>
+<input id="pw" type="password" placeholder="Пароль" autocomplete="current-password">
+<button class="btn" style="width:100%;margin-top:8px" onclick="go()">Войти</button>
+<p id="lm" style="color:var(--hi);font-size:13px"></p>
+</div></div>
+<div id="app" class="hide">
+<header><h1>🩺 Анализы семьи</h1><div><button class="chip" onclick="cfg()">⚙︎</button> <button class="chip" onclick="lockIt()">🔒</button></div></header>
+<div class="tabs" id="mt"></div>
+<div class="tabs sub" id="st"></div>
+<main id="mn"></main>
+<button class="fab" onclick="addForm()">＋</button>
+</div>
+<div id="modal" class="hide" onclick="if(event.target==this)closeM()"><div class="box" id="mb"></div></div>
+<script>
+const $=s=>document.querySelector(s),LS='az_v1';
+let key=null,S=null,cur=0,view='hist';
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fd=d=>d.split('-').reverse().join('.');
+const uid=()=>Math.random().toString(36).slice(2,9);
+const b64=b=>{let s='';new Uint8Array(b).forEach(c=>s+=String.fromCharCode(c));return btoa(s)};
+const ub=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+const P={'Гемоглобин':['г/л',120,160],'Эритроциты':['×10¹²/л',3.8,5.5],'Лейкоциты':['×10⁹/л',4,9],'Тромбоциты':['×10⁹/л',150,400],'СОЭ':['мм/ч',0,15],'Глюкоза':['ммоль/л',3.9,5.6],'HbA1c':['%',4,6],'Холестерин общий':['ммоль/л',0,5.2],'ЛПНП':['ммоль/л',0,3],'Ферритин':['мкг/л',15,150],'Витамин D':['нг/мл',30,100],'ТТГ':['мкЕд/мл',0.4,4],'АЛТ':['Ед/л',0,40],'АСТ':['Ед/л',0,40],'Креатинин':['мкмоль/л',60,110],'Билирубин общий':['мкмоль/л',3.4,17.1]};
+const H={'Гемоглобин':{lo:'Возможна анемия: чаще проверяют ферритин, железо, B12.',hi:'Бывает при обезвоживании; стоит перепроверить.'},'Ферритин':{lo:'Признак дефицита железа.'},'Витамин D':{lo:'Дефицит частый у нас; дозу подбирает врач.'},'Глюкоза':{hi:'Нужна пересдача натощак и HbA1c.'},'Холестерин общий':{hi:'Разберите фракции (ЛПНП, ЛПВП), питание и активность.'},'ТТГ':{hi:'Проверьте Т4 св., консультация эндокринолога.',lo:'Проверьте Т4 св., консультация эндокринолога.'},'Лейкоциты':{hi:'Часто при воспалении или инфекции.',lo:'Проверьте формулу и повторите через 1-2 недели.'},'АЛТ':{hi:'Нагрузка на печень: лекарства, жирная пища, вирусы.'},'АСТ':{hi:'Нагрузка на печень или мышцы.'}};
+const NAMES=['Марат','Айгуль','Нурислам','Абдурахман','Айсултан','Айназым'];
+const init=()=>({members:NAMES.map(n=>({id:uid(),name:n,rec:[],notes:[]}))});
+async function mk(pw,salt){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:200000,hash:'SHA-256'},k,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])}
+async function save(){const iv=crypto.getRandomValues(new Uint8Array(12));const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify(S)));const o=JSON.parse(localStorage.getItem(LS));o.iv=b64(iv);o.ct=b64(ct);localStorage.setItem(LS,JSON.stringify(o))}
+$('#lt').textContent=localStorage.getItem(LS)?'Введите пароль':'Первый запуск: придумайте пароль (от 4 символов). Им шифруются все данные на этом устройстве. Забудете пароль, данные не восстановить, делайте экспорт.';
+$('#pw').addEventListener('keydown',e=>e.key=='Enter'&&go());
+async function go(){const pw=$('#pw').value,m=$('#lm');m.textContent='';let o=localStorage.getItem(LS);
+try{if(!o){if(pw.length<4){m.textContent='Минимум 4 символа';return}const salt=crypto.getRandomValues(new Uint8Array(16));key=await mk(pw,salt);S=init();localStorage.setItem(LS,JSON.stringify({salt:b64(salt)}));await save()}
+else{o=JSON.parse(o);key=await mk(pw,ub(o.salt));try{S=JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:ub(o.iv)},key,ub(o.ct))))}catch(e){m.textContent='Неверный пароль';return}}}
+catch(e){m.textContent='Нужен https или localhost';return}
+$('#lock').classList.add('hide');$('#app').classList.remove('hide');$('#pw').value='';render()}
+function lockIt(){key=S=null;$('#app').classList.add('hide');$('#lock').classList.remove('hide');$('#lt').textContent='Введите пароль'}
+const M=()=>S.members[cur];
+const st=r=>r.lo!=null&&r.v<r.lo?'lo':r.hi!=null&&r.v>r.hi?'hi':'ok';
+const rng=r=>r.lo!=null&&r.hi!=null?`${r.lo}–${r.hi}`:r.hi!=null?`до ${r.hi}`:r.lo!=null?`от ${r.lo}`:'';
+function series(m){const g={};m.rec.slice().sort((a,b)=>a.d<b.d?-1:1).forEach(r=>(g[r.p]=g[r.p]||[]).push(r));return g}
+function render(){$('#mt').innerHTML=S.members.map((m,i)=>`<button class="chip ${i==cur?'on':''}" onclick="cur=${i};render()">${esc(m.name)}</button>`).join('');
+$('#st').innerHTML=[['hist','История'],['dyn','Динамика'],['adv','Советы'],['note','Заметки']].map(([k,t])=>`<button class="chip ${view==k?'on':''}" onclick="view='${k}';render()">${t}</button>`).join('');
+$('#mn').innerHTML=({hist,dyn,adv,note})[view](M())}
+function hist(m){const g={};m.rec.forEach(r=>(g[r.d]=g[r.d]||[]).push(r));const ds=Object.keys(g).sort().reverse();
+return ds.length?ds.map(d=>`<div class="card"><h3>${fd(d)}</h3>${g[d].map(r=>`<div class="row ${st(r)}"><b>${esc(r.p)}</b><span>${r.v} ${esc(r.u)}</span><i>${rng(r)}</i><a onclick="del('${r.id}')">×</a></div>`).join('')}</div>`).join(''):'<p class="empty">Пока нет анализов. Нажмите «＋» или импортируйте данные в настройках.</p>'}
+function spark(a){const W=300,H=70,l=a[a.length-1],vs=a.map(r=>r.v);let mn=Math.min(...vs,l.lo??1e9),mx=Math.max(...vs,l.hi??-1e9);if(mn==mx){mn--;mx++}
+const y=v=>H-6-(v-mn)/(mx-mn)*(H-12),x=i=>a.length>1?8+i*(W-16)/(a.length-1):W/2;
+const band=l.lo!=null&&l.hi!=null?`<rect x="0" y="${y(l.hi)}" width="${W}" height="${y(l.lo)-y(l.hi)}" class="band"/>`:'';
+return `<svg viewBox="0 0 ${W} ${H}">${band}<polyline fill="none" class="ln" points="${a.map((r,i)=>x(i)+','+y(r.v)).join(' ')}"/>${a.map((r,i)=>`<circle cx="${x(i)}" cy="${y(r.v)}" r="4" class="${st(r)}"/>`).join('')}</svg>`}
+function dyn(m){const g=series(m),k=Object.keys(g);return k.length?k.map(p=>{const a=g[p],l=a[a.length-1];return `<div class="card"><div style="display:flex;justify-content:space-between"><b>${esc(p)}</b><span class="row ${st(l)}" style="border:0;display:block;padding:0"><span>${l.v} ${esc(l.u)}</span></span></div>${spark(a)}<div class="mu">${a.length} изм. · ${fd(a[0].d)} → ${fd(l.d)} · норма ${rng(l)||'не задана'}</div></div>`}).join(''):'<p class="empty">Нет данных для графиков.</p>'}
+function adv(m){const g=series(m),o=[],now=Date.now();
+for(const p in g){const a=g[p],l=a[a.length-1],s=st(l);let t='';
+if(s!='ok')t+=`${l.v} ${l.u} — ${s=='hi'?'выше':'ниже'} нормы (${fd(l.d)}). ${(H[p]||{})[s]||'Обсудите с врачом.'}`;
+if(a.length>1){const pr=a[a.length-2],dl=l.v-pr.v,pc=pr.v?Math.round(dl/pr.v*100):0;if(Math.abs(pc)>=10)t+=` Динамика: ${dl>0?'рост':'снижение'} на ${Math.abs(pc)}% с ${fd(pr.d)}.`}
+if(t)o.push({s,p,t});
+if((now-new Date(l.d))/864e5>365)o.push({s:'ok',p,t:`Последний раз сдавали ${fd(l.d)}, больше года назад: пора пересдать.`})}
+o.sort((a,b)=>(a.s=='ok')-(b.s=='ok'));
+return (o.length?o.map(x=>`<div class="card adv ${x.s}"><b>${esc(x.p)}</b><div style="font-size:14px;margin-top:4px">${esc(x.t)}</div></div>`).join(''):'<p class="empty">Всё в норме или данных пока мало.</p>')+'<p class="mu">Подсказки автоматические, по общим нормам взрослых. У детей нормы зависят от возраста: задавайте их при внесении. Это не диагноз, решения принимает врач.</p>'}
+function note(m){return `<div class="card"><textarea id="nt" rows="3" placeholder="Заметка: что беспокоило, что назначил врач..."></textarea><button class="btn" onclick="addNote()">Добавить</button></div>`+(m.notes||[]).slice().reverse().map(n=>`<div class="card"><div class="mu">${fd(n.d)} <a onclick="delNote('${n.id}')" style="float:right;cursor:pointer">×</a></div>${esc(n.t)}</div>`).join('')}
+async function addNote(){const t=$('#nt').value.trim();if(!t)return;(M().notes=M().notes||[]).push({id:uid(),d:new Date().toISOString().slice(0,10),t});await save();render()}
+async function delNote(id){M().notes=M().notes.filter(n=>n.id!=id);await save();render()}
+async function del(id){if(!confirm('Удалить запись?'))return;M().rec=M().rec.filter(r=>r.id!=id);await save();render()}
+function openM(h){$('#mb').innerHTML=h;$('#modal').classList.remove('hide')}
+function closeM(){$('#modal').classList.add('hide')}
+function addForm(){const last=M().rec.length?M().rec.map(r=>r.d).sort().pop():new Date().toISOString().slice(0,10);
+openM(`<h3>Новый анализ · ${esc(M().name)}</h3><input id="fd" type="date" value="${new Date().toISOString().slice(0,10)}">
+<input id="fp" list="pl" placeholder="Показатель" oninput="pre()"><datalist id="pl">${Object.keys(P).map(k=>`<option value="${k}">`).join('')}</datalist>
+<div class="g2"><input id="fv" type="number" step="any" inputmode="decimal" placeholder="Значение"><input id="fu" placeholder="Ед. изм."></div>
+<div class="g2"><input id="fl" type="number" step="any" placeholder="Норма от"><input id="fh" type="number" step="any" placeholder="Норма до"></div>
+<div style="display:flex;gap:8px;margin-top:8px"><button class="btn" onclick="saveRec()">Сохранить</button><button class="btn g" onclick="closeM()">Закрыть</button></div>`)}
+function pre(){const p=P[$('#fp').value];if(p){$('#fu').value=p[0];$('#fl').value=p[1];$('#fh').value=p[2]}}
+async function saveRec(){const v=parseFloat($('#fv').value),p=$('#fp').value.trim(),d=$('#fd').value;if(!p||isNaN(v)||!d)return;
+const n=x=>x===''?null:parseFloat(x);M().rec.push({id:uid(),d,p,v,u:$('#fu').value.trim(),lo:n($('#fl').value),hi:n($('#fh').value)});await save();
+['fp','fv','fu','fl','fh'].forEach(i=>$('#'+i).value='');$('#fp').focus();render()}
+function cfg(){openM(`<h3>Настройки</h3><p class="mu">Данные хранятся только на этом устройстве в зашифрованном виде. Делайте резервную копию.</p>
+<button class="btn" onclick="exp()">Экспорт JSON</button> <button class="btn g" onclick="$('#imp').click()">Импорт JSON</button>
+<input id="imp" type="file" accept=".json" class="hide" onchange="imp(this.files[0])"><p class="mu">Импорт: файл экспорта целиком, либо {"Нурислам":[{"d":"2025-01-10","p":"Гемоглобин","v":128,"u":"г/л","lo":120,"hi":160}]}. Новые записи добавятся к существующим.</p>
+<button class="btn g" onclick="closeM()">Закрыть</button>`)}
+function exp(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'}));a.download='analizy-semya-'+new Date().toISOString().slice(0,10)+'.json';a.click()}
+async function imp(f){if(!f)return;try{const j=JSON.parse(await f.text());
+if(j.members){j.members.forEach(x=>{let m=S.members.find(y=>y.name==x.name);if(!m)S.members.push(m={id:uid(),name:x.name,rec:[],notes:[]});const k=new Set(m.rec.map(r=>[r.d,r.p,r.v]+''));(x.rec||[]).forEach(r=>{if(!k.has([r.d,r.p,r.v]+''))m.rec.push({...r,id:uid()})});m.notes=(m.notes||[]).concat((x.notes||[]).filter(n=>!(m.notes||[]).some(z=>z.id==n.id)))})}
+else for(const nm in j){const m=S.members.find(y=>y.name==nm);if(m)j[nm].forEach(r=>m.rec.push({u:'',lo:null,hi:null,...r,id:uid()}))}
+await save();closeM();render()}catch(e){alert('Не удалось прочитать файл')}}
+(()=>{const m={name:'Анализы семьи',short_name:'Анализы',start_url:'.',display:'standalone',background_color:'#0f766e',theme_color:'#0f766e',icons:[{src:'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#0f766e"/><text x="50" y="68" font-size="56" text-anchor="middle">🩺</text></svg>'),sizes:'any',type:'image/svg+xml'}]};
+const l=document.createElement('link');l.rel='manifest';l.href=URL.createObjectURL(new Blob([JSON.stringify(m)],{type:'application/json'}));document.head.appendChild(l)})();
+</script>
+</body>
+</html>
