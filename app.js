@@ -21,14 +21,16 @@ KB.forEach(k=>[k.n,...(k.al||[])].forEach(a=>KBI.set(nk(a),k)));
 function resolve(name){
  const n=nk(name);let k=KBI.get(n);
  if(!k){const b=n.replace(/ (абс|abs|#|%)$/,'').replace(/ (абс|abs)$/,'');k=KBI.get(b)}
- return k?{canon:k.n,kb:k}:{canon:String(name).trim(),kb:null};
+ if(k)return{canon:k.n,kb:k};
+ const np=nk(String(name).replace(/\(.*?\)/g,''));const kk=np&&np!==n?KBI.get(np):null;
+ return kk?{canon:String(name).trim(),kb:kk}:{canon:String(name).trim(),kb:null};
 }
 
 /* ================= статус и сравнение ================= */
 const stat=r=>r.f?r.f:typeof r.v!=='number'?'na':(r.lo!=null&&r.v<r.lo)?'lo':(r.hi!=null&&r.v>r.hi)?'hi':(r.lo==null&&r.hi==null)?'na':'ok';
 const dist=r=>{const s=stat(r);if(s==='lo')return(r.lo-r.v)/Math.abs(r.lo||1);if(s==='hi')return(r.v-r.hi)/Math.abs(r.hi||1);return(typeof r.v!=='number'&&r.f&&r.f!=='ok')?0.4:0};
 const level=d=>d<0.1?'незначительно':d<0.3?'умеренно':'выражено';
-const rng=r=>r.lo!=null&&r.hi!=null?`${nf(r.lo)}–${nf(r.hi)}`:r.hi!=null?`до ${nf(r.hi)}`:r.lo!=null?`от ${nf(r.lo)}`:'—';
+const rng=r=>r.lo!=null&&r.hi!=null?(r.lo===r.hi?nf(r.lo):`${nf(r.lo)}–${nf(r.hi)}`):r.hi!=null?`до ${nf(r.hi)}`:r.lo!=null?`от ${nf(r.lo)}`:'—';
 const val=r=>typeof r.v==='number'?nf(r.v):esc(r.v);
 const vcls=r=>({hi:'vhi',lo:'vlo',ok:'vok',na:'vna'}[stat(r)]);
 function cmpr(prev,now){
@@ -72,7 +74,7 @@ function build(raw,demo){
   b.recs.forEach(r=>{if(!b.series.has(r.key))b.series.set(r.key,[]);b.series.get(r.key).push(r)});
   b.dates=[...new Set(b.recs.map(r=>r.d))].sort().reverse();
  });
- D={members,mem,by,demo:!!demo};
+ D={members,mem,by,demo:!!demo,docs:(raw.docs||[]).filter(x=>mem[x.m])};
  S.mid=(members.find(m=>by[m.id].recs.length)||members[0]||{}).id||null;
 }
 const latest=mid=>[...D.by[mid].series.values()].map(a=>a[a.length-1]);
@@ -87,14 +89,35 @@ const gOrder=g=>{const i=GROUPS.indexOf(g);return i<0?99:i};
 
 /* ================= шифрование ================= */
 const b64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+let PW=null;
+async function derive(pw,salt,it){
+ const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);
+ return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:it||250000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['decrypt']);
+}
 async function decrypt(pw){
  const d=window.AZ_DATA;if(!d)throw new Error('nodata');
- const te=new TextEncoder();
- const base=await crypto.subtle.importKey('raw',te.encode(pw),'PBKDF2',false,['deriveKey']);
- const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:b64(d.salt),iterations:d.it||250000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['decrypt']);
+ const key=await derive(pw,b64(d.salt),d.it);
  const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64(d.iv)},key,b64(d.ct));
+ PW=pw;
  return JSON.parse(new TextDecoder().decode(pt));
 }
+/* оригиналы: файл = [соль 16][iv 12][шифртекст], расшифровка в браузере */
+async function downloadDoc(id,btn){
+ const d=D.docs.find(x=>x.id===id);if(!d||!PW)return;
+ const old=btn?btn.innerHTML:'';if(btn){btn.disabled=true;btn.textContent='Расшифровка…'}
+ try{
+  const res=await fetch(d.f);if(!res.ok)throw new Error('http '+res.status);
+  const u=new Uint8Array(await res.arrayBuffer());
+  const key=await derive(PW,u.slice(0,16),(window.AZ_DATA||{}).it);
+  const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:u.slice(16,28)},key,u.slice(28));
+  const url=URL.createObjectURL(new Blob([pt],{type:'application/pdf'}));
+  const a=document.createElement('a');a.href=url;a.download=d.n||('analiz-'+d.d+'.pdf');document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+ }catch(e){alert('Не удалось скачать оригинал. Проверьте интернет и попробуйте ещё раз.')}
+ if(btn){btn.disabled=false;btn.innerHTML=old}
+}
+const DL='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M12 3v12M7 11l5 5 5-5M5 21h14"/></svg>';
+const docBtn=x=>`<button class="dlb" data-act="doc" data-v="${esc(x.id)}">${DL}Оригинал PDF · ${esc(x.t||'бланк')}</button>`;
 
 /* ================= визуальные блоки ================= */
 function barHtml(now,prev){
@@ -222,7 +245,7 @@ function vCompare(mid){
   h+=`<div class="gh">${esc(g)}</div>`;
   gs[g].sort((x,y)=>dist(y.now)-dist(x.now)).forEach(r=>{
    const {now,prev,c,s}=r;
-   h+=`<div class="ind ${s}" data-go="${link(mid,r.key)}"><div class="ind-h"><div class="nm">${esc(r.key)}<small>${esc(now.u)}</small></div>${deltaPill(c)}</div>${barHtml(now,prev)}
+   h+=`<div class="ind ${s}" data-go="${link(mid,r.key)}"><div class="ind-h"><div class="nm">${esc(r.key)}${r.key.endsWith(' %')?'':`<small>${esc(now.u)}</small>`}</div>${deltaPill(c)}</div>${barHtml(now,prev)}
    <div class="ind-v"><div class="pv">${prev?`<label>Было · ${fshort(prev.d)}</label><b>${val(prev)}</b>`:`<label>Было</label><b>—</b>`}</div><div class="arr">→</div><div class="nw"><label>Стало · ${fshort(now.d)}</label><b class="${vcls(now)}">${val(now)}</b></div>
    <div class="nr"><span>норма ${rng(now)} ${esc(now.u)}</span><span class="pill ${s}">${ST[s]}</span></div></div>${c&&!c.units?'<div class="warn-u">⚠ единицы измерения в анализах различаются</div>':''}</div>`});
  });
@@ -244,6 +267,7 @@ function vAnalyses(mid){
    const rs=b.recs.filter(r=>r.d===d&&ok(r));if(!rs.length)return;any=true;
    const o=rs.filter(r=>{const s=stat(r);return s==='hi'||s==='lo'}).length,lab=[...new Set(rs.map(r=>r.lab).filter(Boolean))].join(', ');
    h+=`<div class="dcard"><div class="dc-h"><div><b>${fdate(d)}</b><small>${lab?esc(lab)+' · ':''}${rs.length} показ.</small></div><span class="pill ${o?'hi':'ok'}">${o?o+' вне нормы':'всё в норме'}</span></div>`;
+   const dd=(D.docs||[]).filter(x=>x.m===mid&&x.d===d);if(dd.length)h+=`<div class="docs">${dd.map(docBtn).join('')}</div>`;
    const ps={};rs.forEach(r=>(ps[r.g]=ps[r.g]||[]).push(r));
    Object.keys(ps).sort((x,y)=>gOrder(x)-gOrder(y)).forEach(g=>{h+=`<div class="pn">${esc(g)}</div>`+ps[g].map(row).join('')});
    h+='</div>';
@@ -300,6 +324,7 @@ function recCard(blk,side,open){
 const RULES=[
  {t:'Картина похожа на железодефицитную анемию',p:'Низкие гемоглобин и ферритин вместе чаще всего означают нехватку железа. Подтвердить и найти причину (питание, потери крови) нужно у врача.',k:['Гемоглобин','Ферритин'],f:s=>s('Гемоглобин')==='lo'&&s('Ферритин')==='lo'},
  {t:'Скрытый дефицит железа',p:'Запасы железа (ферритин) снижены, а гемоглобин ещё в норме: это ранняя стадия. Самое время скорректировать питание и обсудить с врачом.',k:['Ферритин','Гемоглобин'],f:s=>s('Ферритин')==='lo'&&s('Гемоглобин')==='ok'},
+ {t:'Железо: картина неоднозначная',p:'Насыщение трансферрина снижено, а ферритин повышен. Ферритин растёт при воспалении и инфекциях, поэтому по нему трудно судить о запасах железа. Стоит обсудить с педиатром и сопоставить с гемоглобином, цветовым показателем и MCH.',k:['Насыщение трансферрина','Ферритин','Цветовой показатель','Гемоглобин'],f:s=>s('Насыщение трансферрина')==='lo'&&s('Ферритин')==='hi'},
  {t:'Возможен дефицит B12 или фолатов',p:'Повышенный MCV вместе с низким B12 или фолатами типичен для этого дефицита.',k:['MCV','Витамин B12','Фолиевая кислота'],f:s=>s('MCV')==='hi'&&(s('Витамин B12')==='lo'||s('Фолиевая кислота')==='lo')},
  {t:'Нарушение углеводного обмена',p:'Повышены показатели сахара. Нужны глюкоза натощак, HbA1c и консультация эндокринолога; помогают питание и ходьба.',k:['Глюкоза','HbA1c','Инсулин','HOMA-IR'],f:s=>['Глюкоза','HbA1c','HOMA-IR'].some(k=>s(k)==='hi')},
  {t:'Липидный профиль требует внимания',p:'Холестерин, ЛПНП или триглицериды выше нормы (или ЛПВП ниже). Повод оценить рацион, активность и сердечно-сосудистый риск.',k:['Холестерин общий','ЛПНП','ЛПВП','Триглицериды'],f:s=>['Холестерин общий','ЛПНП','Триглицериды'].some(k=>s(k)==='hi')||s('ЛПВП')==='lo'},
@@ -318,7 +343,7 @@ function vRecs(mid){
  const out=L.filter(r=>{const x=stat(r);return x==='hi'||x==='lo'}).sort((x,y)=>dist(y)-dist(x));
  let h=prHead(m);
  const hit=RULES.filter(r=>{try{return r.f(s)}catch(e){return false}});
- if(hit.length){h+=`<div class="sec"><h2>Главное</h2><small>сочетания показателей</small></div>`+hit.map(r=>`<div class="ins"><b>${esc(r.t)}</b><p>${esc(r.p)}</p><div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${r.k.filter(k=>map[k]).map(k=>`<span class="pill ${stat(map[k])}" style="cursor:pointer" data-go="${link(mid,k)}">${esc(k)} ${val(map[k])}</span>`).join('')}</div></div>`).join('')}
+ if(hit.length){h+=`<div class="sec"><h2>Главное</h2><small>сочетания показателей</small></div>`+hit.map(r=>`<div class="ins"><b>${esc(r.t)}</b><p>${esc(r.p)}</p><div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${r.k.filter(k=>map[k]).map(k=>`<span class="pill ${stat(map[k])}" style="cursor:pointer" data-go="${link(mid,k)}">${esc(k)} ${val(map[k])} · ${fshort(map[k].d)}</span>`).join('')}</div></div>`).join('')}
  else if(!out.length)h+=`<div class="ins g"><b>Все последние показатели в норме</b><p>Отклонений нет. Продолжайте здоровый образ жизни и повторяйте контроль по плану.</p></div>`;
  if(out.length){
   h+=`<div class="sec"><h2>Разбор отклонений</h2><small>${out.length} показ.</small></div>`;
@@ -344,6 +369,7 @@ function vRecs(mid){
 function vSettings(){
  const all=D.members.flatMap(m=>D.by[m.id].recs),ds=[...new Set(all.map(r=>r.d))].sort();
  return `<div class="sec"><h2>О приложении</h2></div><div class="card"><div class="hr"><span class="d">Членов семьи</span><span class="v">${D.members.length}</span></div><div class="hr"><span class="d">Записей показателей</span><span class="v">${all.length}</span></div><div class="hr"><span class="d">Период</span><span class="v">${ds.length?fshort(ds[0])+' — '+fshort(ds[ds.length-1]):'—'}</span></div><div class="hr"><span class="d">Режим</span><span class="v">${D.demo?'ДЕМО':'Ваши данные'}</span></div></div>
+ ${(D.docs||[]).length?`<div class="sec"><h2>Оригиналы документов</h2><small>${D.docs.length} файл.</small></div><div class="card" style="padding:6px 14px">${D.docs.slice().sort((x,y)=>x.d<y.d?1:-1).map(x=>`<div class="attn">${avHtml(D.mem[x.m])}<div class="nm"><b>${fdate(x.d)} · ${esc(x.lab||'')}</b><small>${esc(D.mem[x.m].name)} · ${esc(x.t||'')}</small></div><button class="dlb" data-act="doc" data-v="${esc(x.id)}">${DL}PDF</button></div>`).join('')}</div>`:''}
  <div class="card"><b>Как добавлять анализы</b><p class="mu" style="margin:6px 0 0">Пришлите мне PDF (лучше) или распознанный текст с указанием, чей это анализ. Я проверю значения и нормы бланка, объединю с предыдущими и обновлю приложение.</p></div>
  <div class="card"><b>Конфиденциальность</b><p class="mu" style="margin:6px 0 0">Файл с данными зашифрован (AES-256-GCM) и расшифровывается только в вашем браузере по паролю. Пароль нигде не хранится.</p></div>
  <div class="ctl"><button class="btn line" data-act="print">Печать / PDF</button><button class="btn line" data-act="refresh">Обновить приложение</button><button class="btn" data-act="lock">Заблокировать</button></div>`;
@@ -378,7 +404,7 @@ function render(){
  if(keep)window.scrollTo(0,sy);else window.scrollTo(0,0);
  S.last=t+mid+(r.b||'');
 }
-function lock(){D=null;S={mid:null,base:'prev',cf:'all',am:'date',aq:'',dg:'Все',from:'c',last:''};$('#view').innerHTML='';$('#app').classList.add('hide');const c=$('#cover');c.classList.remove('hide');requestAnimationFrame(()=>c.classList.remove('out'));history.replaceState(null,'',location.pathname);$('#pw').value=''}
+function lock(){D=null;PW=null;S={mid:null,base:'prev',cf:'all',am:'date',aq:'',dg:'Все',from:'c',last:''};$('#view').innerHTML='';$('#app').classList.add('hide');const c=$('#cover');c.classList.remove('hide');requestAnimationFrame(()=>c.classList.remove('out'));history.replaceState(null,'',location.pathname);$('#pw').value=''}
 function enter(){const c=$('#cover');c.classList.add('out');setTimeout(()=>c.classList.add('hide'),520);$('#app').classList.remove('hide');if(!location.hash)history.replaceState(null,'',location.pathname+'#o');render()}
 
 /* ================= события ================= */
@@ -389,6 +415,7 @@ document.addEventListener('click',e=>{
   if(act==='am'){S.am=v;render();return}
   if(act==='dg'){S.dg=v;render();return}
   if(act==='back'){if(history.length>1)history.back();else location.hash='#'+S.from+'/'+S.mid;return}
+  if(act==='doc'){downloadDoc(v,a);return}
   if(act==='print'){window.print();return}
   if(act==='lock'){lock();return}
   if(act==='refresh'){(async()=>{try{const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(x=>x.unregister()));const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}catch(_){}location.reload()})();return}

@@ -2,6 +2,8 @@
 // Использование:
 //   node tools/crypt.mjs enc  family.json  data.enc.js  <пароль>
 //   node tools/crypt.mjs dec  data.enc.js  family.json  <пароль>
+//   node tools/crypt.mjs encfile  original.pdf  docs/name.bin  <пароль>   (оригинал: [соль][iv][шифртекст])
+//   node tools/crypt.mjs decfile  docs/name.bin  original.pdf  <пароль>
 // family.json: {"members":[{"id","name","role"}], "tests":[{"m","d","p","n","v","u","lo","hi","f","lab"}]}
 import {webcrypto as w} from 'node:crypto';
 import fs from 'node:fs';
@@ -12,7 +14,15 @@ async function key(salt,it,use){
  const base=await w.subtle.importKey('raw',te.encode(pw),'PBKDF2',false,['deriveKey']);
  return w.subtle.deriveKey({name:'PBKDF2',salt,iterations:it,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,[use]);
 }
-if(mode==='enc'){
+if(mode==='encfile'){
+ const salt=w.getRandomValues(new Uint8Array(16)), iv=w.getRandomValues(new Uint8Array(12));
+ const ct=new Uint8Array(await w.subtle.encrypt({name:'AES-GCM',iv},await key(salt,IT,'encrypt'),fs.readFileSync(src)));
+ fs.writeFileSync(dst,Buffer.concat([salt,iv,ct]));console.log('ok ->',dst);
+}else if(mode==='decfile'){
+ const u=new Uint8Array(fs.readFileSync(src));
+ const pt=await w.subtle.decrypt({name:'AES-GCM',iv:u.slice(16,28)},await key(u.slice(0,16),IT,'decrypt'),u.slice(28));
+ fs.writeFileSync(dst,Buffer.from(pt));console.log('ok ->',dst);
+}else if(mode==='enc'){
  const plain=JSON.stringify(JSON.parse(fs.readFileSync(src,'utf8')));
  const salt=w.getRandomValues(new Uint8Array(16)), iv=w.getRandomValues(new Uint8Array(12));
  const ct=await w.subtle.encrypt({name:'AES-GCM',iv},await key(salt,IT,'encrypt'),te.encode(plain));
