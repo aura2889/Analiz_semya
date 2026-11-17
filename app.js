@@ -65,12 +65,14 @@ function build(raw,demo){
   let key=r.canon;
   if(DIFF.has(key))key+=t.u==='%'?' %':' абс.';
   const rec={m:t.m,d:t.d,key,canon:r.canon,kb:r.kb,g:r.kb?r.kb.g:(t.p||'Прочее'),p:t.p||'',v:t.v,u:t.u||'',lo:t.lo??null,hi:t.hi??null,f:t.f||null,lab:t.lab||''};
-  uniq.set(t.m+'|'+t.d+'|'+key,rec);
+  uniq.set(t.m+'|'+t.d+'|'+key+'|'+(t.lab||''),rec);
  });
  uniq.forEach(r=>by[r.m].recs.push(r));
  members.forEach(m=>{
   const b=by[m.id];
   b.recs.sort((x,y)=>x.d<y.d?-1:x.d>y.d?1:0);
+  {const us={},fu={};b.recs.forEach(r=>{if(!r.u)return;(us[r.key]=us[r.key]||new Set()).add(r.u);if(fu[r.key]===undefined)fu[r.key]=r.u});
+   b.recs.forEach(r=>{if(r.u&&us[r.key].size>1&&fu[r.key]!==r.u)r.key=r.key+' ('+r.u+')'})}
   b.recs.forEach(r=>{if(!b.series.has(r.key))b.series.set(r.key,[]);b.series.get(r.key).push(r)});
   b.dates=[...new Set(b.recs.map(r=>r.d))].sort().reverse();
  });
@@ -110,14 +112,14 @@ async function downloadDoc(id,btn){
   const u=new Uint8Array(await res.arrayBuffer());
   const key=await derive(PW,u.slice(0,16),(window.AZ_DATA||{}).it);
   const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:u.slice(16,28)},key,u.slice(28));
-  const url=URL.createObjectURL(new Blob([pt],{type:'application/pdf'}));
-  const a=document.createElement('a');a.href=url;a.download=d.n||('analiz-'+d.d+'.pdf');document.body.appendChild(a);a.click();a.remove();
+  const url=URL.createObjectURL(new Blob([pt],{type:d.mime||'application/pdf'}));
+  const a=document.createElement('a');a.href=url;a.download=d.n||('analiz-'+d.d);document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),30000);
  }catch(e){alert('Не удалось скачать оригинал. Проверьте интернет и попробуйте ещё раз.')}
  if(btn){btn.disabled=false;btn.innerHTML=old}
 }
 const DL='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M12 3v12M7 11l5 5 5-5M5 21h14"/></svg>';
-const docBtn=x=>`<button class="dlb" data-act="doc" data-v="${esc(x.id)}">${DL}Оригинал PDF · ${esc(x.t||'бланк')}</button>`;
+const docBtn=x=>`<button class="dlb" data-act="doc" data-v="${esc(x.id)}">${DL}Оригинал · ${esc(x.t||'бланк')}</button>`;
 
 /* ================= визуальные блоки ================= */
 function barHtml(now,prev){
@@ -170,11 +172,13 @@ function bigChart(a){
   if(l.lo!=null)s+=`<line x1="${L}" x2="${W-R}" y1="${y(l.lo)}" y2="${y(l.lo)}" stroke="#1c9b66" stroke-dasharray="4 4" opacity=".6"/><text x="${W-R}" y="${y(l.lo)+13}" text-anchor="end" font-size="10.5" fill="#1c9b66">норма от ${nf(l.lo)}</text>`}
  const pts=a.map((r,i)=>typeof r.v==='number'?[x(r,i),y(r.v),r]:null).filter(Boolean);
  if(pts.length>1)s+=`<polyline fill="none" stroke="#0e6b63" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round" points="${pts.map(q=>q[0]+','+q[1]).join(' ')}"/>`;
- const step=Math.max(1,Math.ceil(a.length/6));
+ const step=Math.max(1,Math.ceil(a.length/6));let lx=null;
  pts.forEach((q,i)=>{const c=({ok:'#1c9b66',hi:'#e0483e',lo:'#2f6bed',na:'#8a9a96'})[stat(q[2])];
   s+=`<circle cx="${q[0]}" cy="${q[1]}" r="6" fill="${c}" stroke="#fff" stroke-width="2.5"/>`;
   if(a.length<=8||i===pts.length-1||i%step===0)s+=`<text x="${q[0]}" y="${q[1]-12}" text-anchor="${pts.length>1&&i===pts.length-1?'end':pts.length>1&&i===0?'start':'middle'}" font-size="12.5" font-weight="700" fill="#102a27">${nf(q[2].v)}</text>`;
-  if(a.length<=7||i===0||i===pts.length-1||i%step===0)s+=`<text x="${q[0]}" y="${H-12}" text-anchor="${pts.length>1&&i===pts.length-1?'end':pts.length>1&&i===0?'start':'middle'}" font-size="11" fill="#66807b">${fshort(q[2].d)}</text>`});
+  const last=i===pts.length-1,first=i===0;
+  const okGap=(lx===null||q[0]-lx>58)&&(last||pts[pts.length-1][0]-q[0]>58);
+  if(first||last||okGap){lx=q[0];s+=`<text x="${q[0]}" y="${H-12}" text-anchor="${pts.length>1&&last?'end':pts.length>1&&first?'start':'middle'}" font-size="11" fill="#66807b">${fshort(q[2].d)}</text>`}});
  return s+'</svg>';
 }
 function ring(ok,out){
@@ -215,7 +219,7 @@ function vOverview(){
  if(att.length){
   h+=`<div class="sec"><h2>Требует внимания</h2><small>${att.length} показ.</small></div><div class="card" style="padding:6px 14px">`;
   att.slice(0,10).forEach(x=>{const s=stat(x.now);
-   h+=`<div class="attn" data-go="${link(x.m.id,x.now.key)}">${avHtml(x.m)}<div class="nm"><b>${esc(x.now.key)}</b><small>${esc(x.m.name)} · норма ${rng(x.now)}</small></div><div class="vl"><b class="${vcls(x.now)}">${val(x.now)} <small>${esc(x.now.u)}</small></b><span class="pill ${s}">${s==='hi'?'выше':s==='lo'?'ниже':'откл.'}</span></div></div>`});
+   h+=`<div class="attn" data-go="${link(x.m.id,x.now.key)}">${avHtml(x.m)}<div class="nm"><b>${esc(x.now.key)}</b><small>${esc(x.m.name)} · норма ${rng(x.now)} · ${fshort(x.now.d)}</small></div><div class="vl"><b class="${vcls(x.now)}">${val(x.now)} <small>${esc(x.now.u)}</small></b><span class="pill ${s}">${s==='hi'?'выше':s==='lo'?'ниже':'откл.'}</span></div></div>`});
   h+='</div>'+(att.length>10?`<p class="mu" style="text-align:center;font-size:13px">Ещё ${att.length-10}: откройте «Советы» у нужного человека</p>`:'');
  }else if(inds){h+=`<div class="ins g"><b>Все последние показатели в норме</b><p>Так держать. Следите за динамикой и сдавайте анализы по плану.</p></div>`}
  const chg=(arr,title,cls)=>arr.length?`<div class="sec"><h2>${title}</h2><small>с прошлого раза</small></div><div class="card" style="padding:6px 14px">${arr.slice(0,5).map(x=>`<div class="attn" data-go="${link(x.m.id,x.now.key)}">${avHtml(x.m)}<div class="nm"><b>${esc(x.now.key)}</b><small>${esc(x.m.name)} · было ${val(x.p)} → стало ${val(x.now)} ${esc(x.now.u)}</small></div>${deltaPill(x.c)}</div>`).join('')}</div>`:'';
@@ -247,7 +251,7 @@ function vCompare(mid){
    const {now,prev,c,s}=r;
    h+=`<div class="ind ${s}" data-go="${link(mid,r.key)}"><div class="ind-h"><div class="nm">${esc(r.key)}${r.key.endsWith(' %')?'':`<small>${esc(now.u)}</small>`}</div>${deltaPill(c)}</div>${barHtml(now,prev)}
    <div class="ind-v"><div class="pv">${prev?`<label>Было · ${fshort(prev.d)}</label><b>${val(prev)}</b>`:`<label>Было</label><b>—</b>`}</div><div class="arr">→</div><div class="nw"><label>Стало · ${fshort(now.d)}</label><b class="${vcls(now)}">${val(now)}</b></div>
-   <div class="nr"><span>норма ${rng(now)} ${esc(now.u)}</span><span class="pill ${s}">${ST[s]}</span></div></div>${c&&!c.units?'<div class="warn-u">⚠ единицы измерения в анализах различаются</div>':''}</div>`});
+   <div class="nr"><span>норма ${rng(now)} ${esc(now.u)}</span><span class="pill ${s}">${ST[s]}</span></div></div>${c&&!c.units?'<div class="warn-u">⚠ единицы измерения в анализах различаются</div>':''}${prev&&prev.lab&&now.lab&&prev.lab!==now.lab?'<div class="warn-u">⚠ разные лаборатории: методы и нормы могут отличаться</div>':''}</div>`});
  });
  return h;
 }
@@ -260,7 +264,7 @@ function vAnalyses(mid){
  const ok=r=>!q||nk(r.key).includes(q)||nk(r.canon).includes(q)||nk(r.p).includes(q);
  let h=prHead(m)+`<div class="ctl"><input type="search" placeholder="Поиск показателя (например: гемоглобин)" value="${esc(S.aq)}" data-act="aq"></div>
  <div class="tg"><button class="${S.am==='date'?'on':''}" data-act="am" data-v="date">По датам</button><button class="${S.am==='group'?'on':''}" data-act="am" data-v="group">По группам (последние)</button></div>`;
- const row=r=>{const s=stat(r);return `<div class="tr" data-go="${link(r.m,r.key)}"><div class="n">${esc(r.key)}</div><div class="v ${vcls(r)}">${val(r)}<small>${esc(r.u)}</small></div><div class="r">${rng(r)}</div><div class="dot ${s}" title="${ST[s]}"></div></div>`};
+ const row=(r,ml)=>{const s=stat(r);return `<div class="tr" data-go="${link(r.m,r.key)}"><div class="n">${esc(r.key)}${ml&&r.lab?`<div class="mu" style="font-size:11px;font-weight:500">${esc(r.lab)}</div>`:''}</div><div class="v ${vcls(r)}">${val(r)}<small>${esc(r.u)}</small></div><div class="r">${rng(r)}</div><div class="dot ${s}" title="${ST[s]}"></div></div>`};
  let any=false;
  if(S.am==='date'){
   b.dates.forEach(d=>{
@@ -268,8 +272,9 @@ function vAnalyses(mid){
    const o=rs.filter(r=>{const s=stat(r);return s==='hi'||s==='lo'}).length,lab=[...new Set(rs.map(r=>r.lab).filter(Boolean))].join(', ');
    h+=`<div class="dcard"><div class="dc-h"><div><b>${fdate(d)}</b><small>${lab?esc(lab)+' · ':''}${rs.length} показ.</small></div><span class="pill ${o?'hi':'ok'}">${o?o+' вне нормы':'всё в норме'}</span></div>`;
    const dd=(D.docs||[]).filter(x=>x.m===mid&&x.d===d);if(dd.length)h+=`<div class="docs">${dd.map(docBtn).join('')}</div>`;
+   const multiLab=[...new Set(rs.map(r=>r.lab))].length>1;
    const ps={};rs.forEach(r=>(ps[r.g]=ps[r.g]||[]).push(r));
-   Object.keys(ps).sort((x,y)=>gOrder(x)-gOrder(y)).forEach(g=>{h+=`<div class="pn">${esc(g)}</div>`+ps[g].map(row).join('')});
+   Object.keys(ps).sort((x,y)=>gOrder(x)-gOrder(y)).forEach(g=>{h+=`<div class="pn">${esc(g)}</div>`+ps[g].map(r=>row(r,multiLab)).join('')});
    h+='</div>';
   });
  }else{
@@ -348,7 +353,7 @@ function vRecs(mid){
  if(out.length){
   h+=`<div class="sec"><h2>Разбор отклонений</h2><small>${out.length} показ.</small></div>`;
   out.forEach((r,i)=>{const side=stat(r),kb=r.kb,blk=kb&&kb[side],arr=D.by[mid].series.get(r.key),p=arr.length>1?arr[arr.length-2]:null,c=cmpr(p,r);
-   h+=`<details class="rc ${side}" ${i<2?'open':''}><summary><div class="nm"><b>${esc(r.key)}</b><small>${val(r)} ${esc(r.u)} · норма ${rng(r)} · ${level(dist(r))}</small></div><span class="pill ${side}">${side==='hi'?'выше':'ниже'}</span></summary><div class="rb">
+   h+=`<details class="rc ${side}" ${i<2?'open':''}><summary><div class="nm"><b>${esc(r.key)}</b><small>${val(r)} ${esc(r.u)} · норма ${rng(r)} · ${level(dist(r))} · ${fshort(r.d)}</small></div><span class="pill ${side}">${side==='hi'?'выше':'ниже'}</span></summary><div class="rb">
    ${p?`<p style="margin:0 0 6px">${deltaPill(c)} <span class="mu" style="font-size:13px">было ${val(p)} → стало ${val(r)}</span></p>`:''}
    ${kb?`<p class="what">${esc(kb.what)}</p>`:''}
    ${blk?`<h4>Возможные причины</h4><ul>${blk.why.map(x=>`<li>${esc(x)}</li>`).join('')}</ul><h4>Что можно сделать</h4><ul>${blk.do.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>${blk.who?`<h4>К кому обратиться</h4><p style="margin:0;font-size:14px">${esc(blk.who)}</p>`:''}`:`<p class="mu" style="font-size:14px">Для этого показателя нет готового разбора. Сравните с референсом лаборатории и обсудите результат с врачом.</p>`}
@@ -369,7 +374,7 @@ function vRecs(mid){
 function vSettings(){
  const all=D.members.flatMap(m=>D.by[m.id].recs),ds=[...new Set(all.map(r=>r.d))].sort();
  return `<div class="sec"><h2>О приложении</h2></div><div class="card"><div class="hr"><span class="d">Членов семьи</span><span class="v">${D.members.length}</span></div><div class="hr"><span class="d">Записей показателей</span><span class="v">${all.length}</span></div><div class="hr"><span class="d">Период</span><span class="v">${ds.length?fshort(ds[0])+' — '+fshort(ds[ds.length-1]):'—'}</span></div><div class="hr"><span class="d">Режим</span><span class="v">${D.demo?'ДЕМО':'Ваши данные'}</span></div></div>
- ${(D.docs||[]).length?`<div class="sec"><h2>Оригиналы документов</h2><small>${D.docs.length} файл.</small></div><div class="card" style="padding:6px 14px">${D.docs.slice().sort((x,y)=>x.d<y.d?1:-1).map(x=>`<div class="attn">${avHtml(D.mem[x.m])}<div class="nm"><b>${fdate(x.d)} · ${esc(x.lab||'')}</b><small>${esc(D.mem[x.m].name)} · ${esc(x.t||'')}</small></div><button class="dlb" data-act="doc" data-v="${esc(x.id)}">${DL}PDF</button></div>`).join('')}</div>`:''}
+ ${(D.docs||[]).length?`<div class="sec"><h2>Оригиналы документов</h2><small>${D.docs.length} файл.</small></div><div class="card" style="padding:6px 14px">${D.docs.slice().sort((x,y)=>x.d<y.d?1:-1).map(x=>`<div class="attn">${avHtml(D.mem[x.m])}<div class="nm"><b>${fdate(x.d)} · ${esc(x.lab||'')}</b><small>${esc(D.mem[x.m].name)} · ${esc(x.t||'')}</small></div><button class="dlb" data-act="doc" data-v="${esc(x.id)}">${DL}Скачать</button></div>`).join('')}</div>`:''}
  <div class="card"><b>Как добавлять анализы</b><p class="mu" style="margin:6px 0 0">Пришлите мне PDF (лучше) или распознанный текст с указанием, чей это анализ. Я проверю значения и нормы бланка, объединю с предыдущими и обновлю приложение.</p></div>
  <div class="card"><b>Конфиденциальность</b><p class="mu" style="margin:6px 0 0">Файл с данными зашифрован (AES-256-GCM) и расшифровывается только в вашем браузере по паролю. Пароль нигде не хранится.</p></div>
  <div class="ctl"><button class="btn line" data-act="print">Печать / PDF</button><button class="btn line" data-act="refresh">Обновить приложение</button><button class="btn" data-act="lock">Заблокировать</button></div>`;
