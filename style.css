@@ -313,6 +313,17 @@ main{max-width:780px;margin:auto;padding:6px 16px calc(110px + env(safe-area-ins
 .pad button{font-size:22px!important}
 .pad button.sm{font-size:18px!important}
 .cv-err{margin:6px 0 0}
-.cv-ecg path{animation:ecgl 3.4s ease-in-out .2s infinite!important}
+
 @keyframes ecgl{0%{stroke-dashoffset:420;opacity:1}55%{stroke-dashoffset:0;opacity:1}85%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:0;opacity:0}}
 @media (max-height:720px){.logo{width:70px;height:70px;margin-bottom:12px}.cv-t{font-size:32px}.cv-s{font-size:14.5px}.cv-ecg{margin:12px auto 4px}.pad{grid-template-columns:repeat(3,48px)!important;gap:6px 18px!important}}
+@keyframes ecgc{0%{stroke-dashoffset:26}78%{stroke-dashoffset:-74}100%{stroke-dashoffset:-74}}
+
+/* ЭКГ на обложке: яркая линия со свечением и бегущей точкой */
+.cv-ecg{width:min(330px,88vw)!important;height:50px!important;margin:18px auto 10px!important;opacity:1!important;overflow:visible;filter:drop-shadow(0 0 5px #ffd978cc) drop-shadow(0 0 16px #f3c969aa)}
+.cv-ecg path.g{animation:none;stroke-dasharray:none;stroke-dashoffset:0}
+.cv-ecg path.l{stroke-dasharray:1;stroke-dashoffset:1;animation:ecgl 3.6s linear infinite}
+.cv-ecg .hd{filter:drop-shadow(0 0 6px #fff) drop-shadow(0 0 12px #ffd978);animation:hdf 3.6s linear infinite}
+@keyframes ecgl{0%{stroke-dashoffset:1;opacity:1}58%{stroke-dashoffset:0;opacity:1}88%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:0;opacity:0}}
+@keyframes hdf{0%,58%{opacity:1}64%,100%{opacity:0}}
+.cv-top{position:relative}
+.cv-top::before{content:"";position:absolute;left:50%;top:62%;width:320px;height:130px;transform:translate(-50%,-50%);background:radial-gradient(ellipse,#f3c96938,transparent 70%);pointer-events:none}

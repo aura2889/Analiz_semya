@@ -518,10 +518,5 @@ $('#pad').addEventListener('click',e=>{const b=e.target.closest('[data-k]');if(b
 document.addEventListener('keydown',e=>{if($('#cover').classList.contains('hide')||$('#cover').classList.contains('out'))return;
  if(/^[0-9]$/.test(e.key))press(e.key);else if(e.key==='Backspace')press('B');else if(e.key==='Escape')press('C')});
 $('#pinForm').addEventListener('submit',e=>{e.preventDefault();if(pin.length===PL&&!busy)tryLogin()});
-$('#demoBtn').onclick=()=>{
- const go=()=>{build(window.DEMO,true);enter()};
- if(window.DEMO)return go();
- const s=document.createElement('script');s.src='demo.js?v=1';s.onload=go;s.onerror=()=>{$('#cvErr').textContent='Не удалось загрузить демо'};document.head.appendChild(s);
-};
 window.__az={build:(r,d)=>{build(r,d);enter()}};
 })();
