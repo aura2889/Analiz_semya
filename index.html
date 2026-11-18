@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Анализ семьи">
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 
@@ -30,13 +30,13 @@
 <!-- ============ ОБЛОЖКА ============ -->
 <section id="cover">
  <div class="cv-bg"><i></i><i></i><i></i><div class="cv-grid"></div></div>
- <div class="cv-in">
+ <div class="cv-in"><div class="cv-top">
   <svg class="logo"><use href="#logo"/></svg>
   <h1 class="cv-t">Анализ семьи</h1>
   <p class="cv-s">Здоровье каждого близкого человека — в одном месте. Было, стало, что делать дальше.</p>
   <svg class="cv-ecg" viewBox="0 0 230 30" fill="none"><path d="M0 15h70l8-11 10 24 9-13h28l6-9 8 18 5-9h86" stroke="#f3c969" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
   <div class="cv-av" id="cvAv"></div>
-  <form class="pin" id="pinForm" autocomplete="off">
+  </div><div class="cv-bot"><form class="pin" id="pinForm" autocomplete="off">
    <input id="pw" type="hidden">
    <div class="dots" id="dots" role="img" aria-label="Введите код"><i></i><i></i><i></i><i></i></div>
    <div class="pad" id="pad"><button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button><button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button><button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button><button type="button" data-k="C" class="sm" aria-label="Стереть всё">С</button><button type="button" data-k="0">0</button><button type="button" data-k="B" class="sm" aria-label="Стереть цифру">⌫</button></div>
@@ -44,7 +44,7 @@
   <p class="cv-err" id="cvErr" role="alert"></p>
   <button class="cv-demo" id="demoBtn" type="button">Посмотреть на демо-данных</button>
   <div class="cv-foot">Данные зашифрованы · открываются только по паролю</div>
- </div>
+ </div></div>
 </section>
 
 <!-- ============ ПРИЛОЖЕНИЕ ============ -->
@@ -61,7 +61,6 @@
  <main id="view"></main>
  <nav class="dock" id="dock" aria-label="Разделы">
   <a data-t="o"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Обзор</a>
-  <a data-t="c"><svg viewBox="0 0 24 24"><path d="M7 4v16M7 4L3 8M7 4l4 4M17 20V4M17 20l-4-4M17 20l4-4"/></svg>Сравнение</a>
   <a data-t="a"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Анализы</a>
   <a data-t="d"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg>Динамика</a>
   <a data-t="r"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.900c.6.5 1 1.200 1 2V16h5v-.1c0-.8.4-1.500 1-2A6 6 0 0 0 12 3z"/></svg>Советы</a>
@@ -70,7 +69,7 @@
 
 <script src="kb.js?v=1"></script>
 <script src="data.enc.js?v=1"></script>
-<script src="app.js?v=2"></script>
+<script src="app.js?v=3"></script>
 <script>if('serviceWorker' in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('sw.js').catch(function(){});</script>
 </body>
 </html>

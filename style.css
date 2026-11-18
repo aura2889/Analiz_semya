@@ -22,7 +22,7 @@ h1,h2,h3{margin:0}
 .cv-bg i:nth-child(2){width:340px;height:340px;left:-120px;bottom:-60px;background:radial-gradient(circle at 60% 40%,#d9a44133,#d9a44100 70%)}
 .cv-bg i:nth-child(3){width:220px;height:220px;left:30%;top:38%;background:radial-gradient(circle,#ffffff14,#ffffff00 70%)}
 .cv-grid{position:absolute;inset:0;background-image:linear-gradient(#ffffff0a 1px,transparent 1px),linear-gradient(90deg,#ffffff0a 1px,transparent 1px);background-size:36px 36px;mask-image:radial-gradient(ellipse at 50% 30%,#000 10%,transparent 70%);-webkit-mask-image:radial-gradient(ellipse at 50% 30%,#000 10%,transparent 70%)}
-.cv-in{position:relative;width:100%;max-width:420px;padding:max(28px,env(safe-area-inset-top)) 26px max(28px,env(safe-area-inset-bottom));display:flex;flex-direction:column;justify-content:center;min-height:100%;text-align:center}
+.cv-in{position:relative;width:100%;max-width:420px;padding:max(28px,env(safe-area-inset-top)) 26px max(18px,env(safe-area-inset-bottom));display:flex;flex-direction:column;justify-content:space-between;min-height:100%;text-align:center}
 .logo{width:92px;height:92px;margin:0 auto 20px;filter:drop-shadow(0 14px 22px #00000040)}
 .cv-t{font-size:38px;font-weight:800;letter-spacing:-.02em;line-height:1.05}
 .cv-s{margin:12px auto 0;max-width:300px;font-size:16px;color:#d6f1ec;line-height:1.45}
@@ -303,3 +303,16 @@ main{max-width:780px;margin:auto;padding:6px 16px calc(110px + env(safe-area-ins
 .mx td.c .dt{display:block;font-size:9.5px;color:var(--mu);margin-top:1px;white-space:nowrap}
 .mx td.new{background:#f4fbf9}
 .mx .dh{min-width:62px}
+
+/* обложка: логотип сверху, клавиатура компактно внизу */
+.cv-top{margin:auto 0;padding-top:4px}
+.cv-bot{padding-top:14px}
+.dots{height:14px}.dots i{width:13px;height:13px}
+.pin{gap:14px}
+.pad{grid-template-columns:repeat(3,56px)!important;gap:9px 20px!important}
+.pad button{font-size:22px!important}
+.pad button.sm{font-size:18px!important}
+.cv-err{margin:6px 0 0}
+.cv-ecg path{animation:ecgl 3.4s ease-in-out .2s infinite!important}
+@keyframes ecgl{0%{stroke-dashoffset:420;opacity:1}55%{stroke-dashoffset:0;opacity:1}85%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:0;opacity:0}}
+@media (max-height:720px){.logo{width:70px;height:70px;margin-bottom:12px}.cv-t{font-size:32px}.cv-s{font-size:14.5px}.cv-ecg{margin:12px auto 4px}.pad{grid-template-columns:repeat(3,48px)!important;gap:6px 18px!important}}

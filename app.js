@@ -12,7 +12,7 @@ const nf1=v=>String(Math.round(v*10)/10).replace('.',',');
 const nk=s=>String(s).toLowerCase().replace(/ё/g,'е').replace(/[^a-zа-я0-9%#]+/g,' ').trim();
 const DIFF=new Set(['Нейтрофилы','Лимфоциты','Моноциты','Эозинофилы','Базофилы']);
 const ST={ok:'Норма',hi:'Выше нормы',lo:'Ниже нормы',na:'—'};
-const TABS=['o','c','a','d','r'];
+const TABS=['o','a','d','r'];
 const TTL={o:'Анализ семьи',c:'Было → стало',a:'Анализы',d:'Динамика',r:'Советы',s:'Настройки',i:'Показатель'};
 
 /* ================= справочник ================= */
@@ -51,7 +51,7 @@ function deltaPill(c){
 }
 
 /* ================= модель данных ================= */
-let D=null,S={mid:null,base:'prev',cf:'all',am:'tb',tf:'all',aq:'',dg:'Все',from:'c',last:''};
+let D=null,S={mid:null,base:'prev',cf:'all',am:'tb',tf:'all',aq:'',dg:'Все',from:'a',last:''};
 function build(raw,demo){
  const members=(raw.members||[]).map((m,i)=>({...m,i,col:COL[i%COL.length]}));
  const mem={},by={};
@@ -206,12 +206,12 @@ function vOverview(){
  });
  att.sort((x,y)=>dist(y.now)-dist(x.now));better.sort((x,y)=>y.dd-x.dd);worse.sort((x,y)=>y.dd-x.dd);
  let h=`<section class="hero"><h1>Здоровье семьи</h1><p>${D.members.length?'Сводка по последним анализам каждого. Нажмите на любую плитку, чтобы увидеть детали.':''}</p>
- <div class="kpis"><div class="kpi" data-go="#c/${S.mid}"><b>${D.members.length}</b><span>человек</span></div><div class="kpi" data-go="#a/${S.mid}"><b>${tests}</b><span>сдач анализов</span></div><div class="kpi" data-go="#d/${S.mid}"><b>${inds}</b><span>показателей</span></div><div class="kpi ${out?'warn':''}" data-go="#r/${S.mid}"><b>${out}</b><span>вне нормы</span></div></div></section>`;
+ <div class="kpis"><div class="kpi" data-go="#a/${S.mid}"><b>${D.members.length}</b><span>человек</span></div><div class="kpi" data-go="#a/${S.mid}"><b>${tests}</b><span>сдач анализов</span></div><div class="kpi" data-go="#d/${S.mid}"><b>${inds}</b><span>показателей</span></div><div class="kpi ${out?'warn':''}" data-go="#r/${S.mid}"><b>${out}</b><span>вне нормы</span></div></div></section>`;
  h+=`<div class="sec"><h2>Семья</h2><small>последние анализы</small></div><div class="mg">`;
  D.members.forEach(m=>{
   const b=D.by[m.id],L=latest(m.id),ok=L.filter(r=>stat(r)==='ok').length,o=L.filter(r=>{const s=stat(r);return s==='hi'||s==='lo'}).length;
   let bt=0,wr=0;b.series.forEach(arr=>{if(arr.length>1){const c=cmpr(arr[arr.length-2],arr[arr.length-1]);if(c.t==='better')bt++;if(c.t==='worse')wr++}});
-  h+=`<div class="mc" style="--mcol:${m.col}" data-go="#c/${m.id}"><div class="mc-h">${avHtml(m,1)}<div><b>${esc(m.name)}</b><small>${b.dates.length?'анализ от '+fdate(b.dates[0]):'нет данных'}</small></div></div>`;
+  h+=`<div class="mc" style="--mcol:${m.col}" data-go="#a/${m.id}"><div class="mc-h">${avHtml(m,1)}<div><b>${esc(m.name)}</b><small>${b.dates.length?'анализ от '+fdate(b.dates[0]):'нет данных'}</small></div></div>`;
   h+=b.recs.length?`<div class="ring">${ring(ok,o)}<div class="t"><b>${o?o+' вне нормы':'всё в норме'}</b><br>${L.length} показ.${bt||wr?`<br><span class="vok" title="улучшилось">▲${bt}</span> <span class="vhi" title="ухудшилось">▼${wr}</span>`:''}</div></div>`:'<div class="mu" style="font-size:13px">Добавьте первые анализы</div>';
   h+='</div>';
  });
@@ -440,12 +440,13 @@ function vSettings(){
 function parse(){const p=location.hash.slice(1).split('/');return{t:p[0]||'o',a:p[1]?decodeURIComponent(p[1]):null,b:p[2]?decodeURIComponent(p[2]):null}}
 function render(){
  if(!D)return;
- const r=parse();let t=TABS.concat(['i','s']).includes(r.t)?r.t:'o';
+ const r=parse();if(r.t==='c'){location.replace('#a/'+(r.a||S.mid||''));return}
+ let t=TABS.concat(['i','s']).includes(r.t)?r.t:'o';
  if(t==='i'&&D.mem[r.a])S.mid=r.a;else if(r.a&&D.mem[r.a])S.mid=r.a;
  if(!D.mem[S.mid])S.mid=(D.members[0]||{}).id;
  if(TABS.includes(t)&&t!=='o')S.from=t;
  const mid=S.mid,m=D.mem[mid];
- const showChips=['c','a','d','r'].includes(t);
+ const showChips=['a','d','r'].includes(t);
  $('#chips').classList.toggle('hide',!showChips);
  $('#chips').innerHTML=showChips?D.members.map(x=>`<div class="mchip ${x.id===mid?'on':''}" data-go="#${t}/${x.id}">${avHtml(x)}${esc(x.name)}</div>`).join(''):'';
  $('#ttl').textContent=t==='o'?'Анализ семьи':(TTL[t]||'Анализ семьи');
@@ -454,7 +455,6 @@ function render(){
  if(t==='o')h+=vOverview();
  else if(t==='s')h+=vSettings();
  else if(!m)h+='<div class="card empty"><b>Нет членов семьи</b></div>';
- else if(t==='c')h+=vCompare(mid);
  else if(t==='a')h+=vAnalyses(mid);
  else if(t==='d')h+=vDynamics(mid);
  else if(t==='r')h+=vRecs(mid);
@@ -465,7 +465,7 @@ function render(){
  if(keep)window.scrollTo(0,sy);else window.scrollTo(0,0);
  S.last=t+mid+(r.b||'');
 }
-function lock(){D=null;PW=null;S={mid:null,base:'prev',cf:'all',am:'tb',tf:'all',aq:'',dg:'Все',from:'c',last:''};$('#view').innerHTML='';$('#app').classList.add('hide');const c=$('#cover');c.classList.remove('hide');requestAnimationFrame(()=>c.classList.remove('out'));history.replaceState(null,'',location.pathname);$('#pw').value='';pin='';paint()}
+function lock(){D=null;PW=null;S={mid:null,base:'prev',cf:'all',am:'tb',tf:'all',aq:'',dg:'Все',from:'a',last:''};$('#view').innerHTML='';$('#app').classList.add('hide');const c=$('#cover');c.classList.remove('hide');requestAnimationFrame(()=>c.classList.remove('out'));history.replaceState(null,'',location.pathname);$('#pw').value='';pin='';paint()}
 function enter(){const c=$('#cover');c.classList.add('out');setTimeout(()=>c.classList.add('hide'),520);$('#app').classList.remove('hide');if(!location.hash)history.replaceState(null,'',location.pathname+'#o');render()}
 
 /* ================= события ================= */
