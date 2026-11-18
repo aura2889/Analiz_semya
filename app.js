@@ -284,7 +284,7 @@ function vMatrix(mid,ok){
  if(!rows.length)return h+'<div class="card empty"><b>Ничего не найдено</b>Попробуйте другое название или фильтр.</div>';
  const N=Math.min(6,Math.max(...rows.map(r=>r.arr.length)));
  const multiLab=new Set(b.recs.map(r=>r.lab)).size>1;
- const HD=['Сейчас','Было','До этого','Ещё раньше','Раньше','Раньше'];
+ const HD=['Последний','Предыдущий','Ранее','Ранее','Ранее','Ранее'];
  h+=`<div class="mx"><table><thead><tr><th class="rn">Показатель<small>единицы · норма</small></th>${Array.from({length:N},(_,i)=>`<th class="dh ${i===0?'new':''}">${HD[i]}</th>`).join('')}</tr></thead><tbody>`;
  const gs={};rows.forEach(r=>(gs[r.now.g]=gs[r.now.g]||[]).push(r));
  Object.keys(gs).sort((x,y)=>gOrder(x)-gOrder(y)).forEach(g=>{
@@ -295,7 +295,7 @@ function vMatrix(mid,ok){
    for(let i=0;i<N;i++){
     const x=r.arr[r.arr.length-1-i];
     if(!x){h+=`<td class="e ${i===0?'new':''}"></td>`;continue}
-    h+=`<td class="c ${stat(x)} ${i===0?'new':''}"><b>${val(x)}</b>${i===0?arrow(c):''}<span class="dt">${fshort(x.d)}${multiLab&&x.lab?' · '+esc(x.lab[0]):''}</span></td>`;
+    h+=`<td class="c ${stat(x)} ${i===0?'new':''}"><span class="dt">${fshort(x.d)}${multiLab&&x.lab?' · '+esc(x.lab[0]):''}</span><b>${val(x)}</b>${i===0?arrow(c):''}</td>`;
    }
    h+='</tr>';
   });

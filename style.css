@@ -327,3 +327,6 @@ main{max-width:780px;margin:auto;padding:6px 16px calc(110px + env(safe-area-ins
 @keyframes hdf{0%,58%{opacity:1}64%,100%{opacity:0}}
 .cv-top{position:relative}
 .cv-top::before{content:"";position:absolute;left:50%;top:62%;width:320px;height:130px;transform:translate(-50%,-50%);background:radial-gradient(ellipse,#f3c96938,transparent 70%);pointer-events:none}
+
+.mx td.c .dt{margin:0 0 2px;font-size:10.5px;font-weight:600;color:var(--tx,#334)}
+.mx .dh{font-size:11px}
