@@ -51,7 +51,7 @@ function deltaPill(c){
 }
 
 /* ================= модель данных ================= */
-let D=null,S={mid:null,base:'prev',cf:'all',am:'date',aq:'',dg:'Все',from:'c',last:''};
+let D=null,S={mid:null,base:'prev',cf:'all',am:'tb',tf:'all',aq:'',dg:'Все',from:'c',last:''};
 function build(raw,demo){
  const members=(raw.members||[]).map((m,i)=>({...m,i,col:COL[i%COL.length]}));
  const mem={},by={};
@@ -257,13 +257,69 @@ function vCompare(mid){
 }
 
 /* ================= АНАЛИЗЫ ================= */
+const KBO=new Map(KB.map((k,i)=>[k,i]));
+const kbo=r=>r.kb?KBO.get(r.kb):999;
+const arrow=c=>c&&c.dv!=null&&c.dv!==0?`<i class="ar ${c.t==='better'?'good':c.t==='worse'?'bad':'same'}">${c.dv>0?'▲':'▼'}</i>`:'';
 function vAnalyses(mid){
  const m=D.mem[mid],b=D.by[mid];
  if(!b.recs.length)return noData(m);
+ const MODES=[['tb','Таблица'],['sv','Свод'],['date','Даты'],['group','Группы']];
+ if(!MODES.some(x=>x[0]===S.am))S.am='tb';
+ let h=prHead(m)+`<div class="tg modes">${MODES.map(x=>`<button class="${S.am===x[0]?'on':''}" data-act="am" data-v="${x[0]}">${x[1]}</button>`).join('')}</div>`;
+ if(S.am==='sv')return h+vSummary(mid);
  const q=nk(S.aq);
  const ok=r=>!q||nk(r.key).includes(q)||nk(r.canon).includes(q)||nk(r.p).includes(q);
- let h=prHead(m)+`<div class="ctl"><input type="search" placeholder="Поиск показателя (например: гемоглобин)" value="${esc(S.aq)}" data-act="aq"></div>
- <div class="tg"><button class="${S.am==='date'?'on':''}" data-act="am" data-v="date">По датам</button><button class="${S.am==='group'?'on':''}" data-act="am" data-v="group">По группам (последние)</button></div>`;
+ h+=`<div class="ctl"><input type="search" placeholder="Поиск показателя (например: гемоглобин)" value="${esc(S.aq)}" data-act="aq"></div>`;
+ if(S.am==='tb')return h+vMatrix(mid,ok);
+ return h+vDetail(mid,ok);
+}
+/* --- Таблица: одна строка на показатель; слева последнее значение, правее — прошлые --- */
+function vMatrix(mid,ok){
+ const b=D.by[mid];
+ let rows=[...b.series.entries()].map(([key,arr])=>({key,arr,now:arr[arr.length-1]})).filter(r=>ok(r.now));
+ const isOut=r=>{const s=stat(r.now);return s==='hi'||s==='lo'};
+ const nOut=rows.filter(isOut).length,nAll=rows.length;
+ if(S.tf==='out')rows=rows.filter(isOut);
+ let h=`<div class="tg flt"><button class="${S.tf!=='out'?'on':''}" data-act="tf" data-v="all">Все<b>${nAll}</b></button><button class="${S.tf==='out'?'on':''}" data-act="tf" data-v="out">Вне нормы<b>${nOut}</b></button></div>`;
+ if(!rows.length)return h+'<div class="card empty"><b>Ничего не найдено</b>Попробуйте другое название или фильтр.</div>';
+ const N=Math.min(6,Math.max(...rows.map(r=>r.arr.length)));
+ const multiLab=new Set(b.recs.map(r=>r.lab)).size>1;
+ const HD=['Сейчас','Было','До этого','Ещё раньше','Раньше','Раньше'];
+ h+=`<div class="mx"><table><thead><tr><th class="rn">Показатель<small>единицы · норма</small></th>${Array.from({length:N},(_,i)=>`<th class="dh ${i===0?'new':''}">${HD[i]}</th>`).join('')}</tr></thead><tbody>`;
+ const gs={};rows.forEach(r=>(gs[r.now.g]=gs[r.now.g]||[]).push(r));
+ Object.keys(gs).sort((x,y)=>gOrder(x)-gOrder(y)).forEach(g=>{
+  h+=`<tr class="gr"><th colspan="${N+1}"><span>${esc(g)}</span></th></tr>`;
+  gs[g].sort((x,y)=>kbo(x.now)-kbo(y.now)).forEach(r=>{
+   const now=r.now,c=cmpr(r.arr.length>1?r.arr[r.arr.length-2]:null,now);
+   h+=`<tr class="rw" data-go="${link(mid,r.key)}"><th class="rn"><b>${esc(r.key)}</b><small>${r.key.endsWith(' %')?'':esc(now.u)+' · '}${rng(now)}</small></th>`;
+   for(let i=0;i<N;i++){
+    const x=r.arr[r.arr.length-1-i];
+    if(!x){h+=`<td class="e ${i===0?'new':''}"></td>`;continue}
+    h+=`<td class="c ${stat(x)} ${i===0?'new':''}"><b>${val(x)}</b>${i===0?arrow(c):''}<span class="dt">${fshort(x.d)}${multiLab&&x.lab?' · '+esc(x.lab[0]):''}</span></td>`;
+   }
+   h+='</tr>';
+  });
+ });
+ return h+`</tbody></table></div><p class="hint">${N>2?'Листайте таблицу вправо — там прошлые анализы. ':''}<span class="vhi">Красное</span> — выше нормы, <span class="vlo">синее</span> — ниже. Стрелка — изменение с прошлого раза (зелёная — к лучшему). Нажмите на строку — график и причины.${multiLab?' Е — Еркемед, О — Олимп: нормы лабораторий различаются.':''}</p>`;
+}
+/* --- Свод: коротко, что не так; остальное по клику --- */
+function vSummary(mid){
+ const b=D.by[mid],L=latest(mid);
+ const bad=L.filter(r=>{const s=stat(r);return s==='hi'||s==='lo'}).sort((x,y)=>dist(y)-dist(x));
+ const good=L.filter(r=>stat(r)==='ok'),na=L.filter(r=>stat(r)==='na');
+ const last=b.dates[0],labs=[...new Set(b.recs.filter(r=>r.d===last).map(r=>r.lab).filter(Boolean))].join(', ');
+ const row=r=>{const arr=D.by[mid].series.get(r.key),p=arr.length>1?arr[arr.length-2]:null,s=stat(r),c=cmpr(p,r);
+  return `<div class="sv ${s}" data-go="${link(mid,r.key)}"><div class="sn"><b>${esc(r.key)}</b><small>норма ${rng(r)}${r.key.endsWith(' %')?'':' '+esc(r.u)}${r.d!==last?' · '+fshort(r.d):''}${p&&p.lab&&r.lab&&p.lab!==r.lab?' · ⚠ разные лаборатории':''}</small></div><div class="sw">${p?`<span class="pv">${val(p)}</span><span class="ar0">→</span>`:''}<b class="${vcls(r)}">${val(r)}</b>${c?arrow(c):''}</div></div>`};
+ let h=`<div class="card svh"><div class="ring">${ring(good.length,bad.length)}<div class="t"><b>${bad.length?bad.length+' вне нормы':'Всё в норме'}</b><br>из ${good.length+bad.length} показателей с нормой</div></div><div class="mu" style="font-size:13px;margin-top:8px">Последний анализ: <b style="color:var(--ink)">${fdate(last)}</b>${labs?' · '+esc(labs):''}</div></div>`;
+ if(bad.length)h+=`<div class="sec"><h2>Вне нормы</h2><small>было → стало</small></div><div class="card svl">${bad.map(row).join('')}</div><div class="ctl"><button class="btn line" data-go="#r/${mid}">Что делать и причины →</button></div>`;
+ else h+=`<div class="ins g"><b>Все последние показатели в норме</b></div>`;
+ if(good.length)h+=`<details class="okd"><summary>В норме · ${good.length}</summary><div class="card svl">${good.map(row).join('')}</div></details>`;
+ if(na.length)h+=`<details class="okd"><summary>Без нормы в бланке · ${na.length}</summary><div class="card svl">${na.map(row).join('')}</div></details>`;
+ return h+`<div class="ctl"><button class="btn line" data-act="am" data-v="tb">Открыть таблицу со всеми датами →</button></div>`;
+}
+/* --- Подробно: по датам / по группам --- */
+function vDetail(mid,ok){
+ const b=D.by[mid];let h='';
  const row=(r,ml)=>{const s=stat(r);return `<div class="tr" data-go="${link(r.m,r.key)}"><div class="n">${esc(r.key)}${ml&&r.lab?`<div class="mu" style="font-size:11px;font-weight:500">${esc(r.lab)}</div>`:''}</div><div class="v ${vcls(r)}">${val(r)}<small>${esc(r.u)}</small></div><div class="r">${rng(r)}</div><div class="dot ${s}" title="${ST[s]}"></div></div>`};
  let any=false;
  if(S.am==='date'){
@@ -409,7 +465,7 @@ function render(){
  if(keep)window.scrollTo(0,sy);else window.scrollTo(0,0);
  S.last=t+mid+(r.b||'');
 }
-function lock(){D=null;PW=null;S={mid:null,base:'prev',cf:'all',am:'date',aq:'',dg:'Все',from:'c',last:''};$('#view').innerHTML='';$('#app').classList.add('hide');const c=$('#cover');c.classList.remove('hide');requestAnimationFrame(()=>c.classList.remove('out'));history.replaceState(null,'',location.pathname);$('#pw').value=''}
+function lock(){D=null;PW=null;S={mid:null,base:'prev',cf:'all',am:'tb',tf:'all',aq:'',dg:'Все',from:'c',last:''};$('#view').innerHTML='';$('#app').classList.add('hide');const c=$('#cover');c.classList.remove('hide');requestAnimationFrame(()=>c.classList.remove('out'));history.replaceState(null,'',location.pathname);$('#pw').value='';pin='';paint()}
 function enter(){const c=$('#cover');c.classList.add('out');setTimeout(()=>c.classList.add('hide'),520);$('#app').classList.remove('hide');if(!location.hash)history.replaceState(null,'',location.pathname+'#o');render()}
 
 /* ================= события ================= */
@@ -418,6 +474,7 @@ document.addEventListener('click',e=>{
  if(a){const act=a.dataset.act,v=a.dataset.v;
   if(act==='cf'){S.cf=S.cf===v?'all':v;render();return}
   if(act==='am'){S.am=v;render();return}
+  if(act==='tf'){S.tf=v;render();return}
   if(act==='dg'){S.dg=v;render();return}
   if(act==='back'){if(history.length>1)history.back();else location.hash='#'+S.from+'/'+S.mid;return}
   if(act==='doc'){downloadDoc(v,a);return}
@@ -440,13 +497,27 @@ $('#bPrint').onclick=()=>window.print();
 /* ================= вход ================= */
 const NAMES=['М','А','Н','А','А','А'];
 $('#cvAv').innerHTML=NAMES.map((n,i)=>`<span style="background:${COL[i]}">${n}</span>`).join('');
-$('#pinForm').addEventListener('submit',async e=>{
- e.preventDefault();const pw=$('#pw').value,err=$('#cvErr');err.textContent='';
- if(!pw)return;
- if(!window.isSecureContext){err.textContent='Нужен https (или localhost)';return}
- try{const raw=await decrypt(pw);build(raw,false);$('#pw').value='';enter()}
- catch(x){err.textContent=x&&x.message==='nodata'?'Файл данных не найден':'Неверный пароль'}
-});
+const PL=4;let pin='',busy=false;
+const paint=()=>{[...document.querySelectorAll('#dots i')].forEach((d,i)=>d.classList.toggle('on',i<pin.length))};
+async function tryLogin(){
+ const err=$('#cvErr');err.textContent='';
+ if(!window.isSecureContext){err.textContent='Нужен https (или localhost)';pin='';paint();return}
+ busy=true;$('#pad').classList.add('busy');
+ try{const raw=await decrypt(pin);build(raw,false);pin='';$('#pw').value='';paint();enter()}
+ catch(x){err.textContent=x&&x.message==='nodata'?'Файл данных не найден':'Неверный пароль';const d=$('#dots');d.classList.remove('shake');void d.offsetWidth;d.classList.add('shake');pin='';paint()}
+ busy=false;$('#pad').classList.remove('busy');
+}
+function press(k){
+ if(busy)return;
+ if(k==='B')pin=pin.slice(0,-1);else if(k==='C')pin='';
+ else if(/^[0-9]$/.test(k)&&pin.length<PL)pin+=k;
+ $('#pw').value=pin;paint();$('#cvErr').textContent='';
+ if(pin.length===PL)setTimeout(tryLogin,120);
+}
+$('#pad').addEventListener('click',e=>{const b=e.target.closest('[data-k]');if(b)press(b.dataset.k)});
+document.addEventListener('keydown',e=>{if($('#cover').classList.contains('hide')||$('#cover').classList.contains('out'))return;
+ if(/^[0-9]$/.test(e.key))press(e.key);else if(e.key==='Backspace')press('B');else if(e.key==='Escape')press('C')});
+$('#pinForm').addEventListener('submit',e=>{e.preventDefault();if(pin.length===PL&&!busy)tryLogin()});
 $('#demoBtn').onclick=()=>{
  const go=()=>{build(window.DEMO,true);enter()};
  if(window.DEMO)return go();

@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Анализ семьи">
-<link rel="stylesheet" href="style.css?v=1">
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 
@@ -37,8 +37,9 @@
   <svg class="cv-ecg" viewBox="0 0 230 30" fill="none"><path d="M0 15h70l8-11 10 24 9-13h28l6-9 8 18 5-9h86" stroke="#f3c969" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
   <div class="cv-av" id="cvAv"></div>
   <form class="pin" id="pinForm" autocomplete="off">
-   <input id="pw" type="password" placeholder="Пароль" autocomplete="current-password" inputmode="text" aria-label="Пароль">
-   <button class="btn" type="submit">Войти</button>
+   <input id="pw" type="hidden">
+   <div class="dots" id="dots" role="img" aria-label="Введите код"><i></i><i></i><i></i><i></i></div>
+   <div class="pad" id="pad"><button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button><button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button><button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button><button type="button" data-k="C" class="sm" aria-label="Стереть всё">С</button><button type="button" data-k="0">0</button><button type="button" data-k="B" class="sm" aria-label="Стереть цифру">⌫</button></div>
   </form>
   <p class="cv-err" id="cvErr" role="alert"></p>
   <button class="cv-demo" id="demoBtn" type="button">Посмотреть на демо-данных</button>
@@ -69,7 +70,7 @@
 
 <script src="kb.js?v=1"></script>
 <script src="data.enc.js?v=1"></script>
-<script src="app.js?v=1"></script>
+<script src="app.js?v=2"></script>
 <script>if('serviceWorker' in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('sw.js').catch(function(){});</script>
 </body>
 </html>
