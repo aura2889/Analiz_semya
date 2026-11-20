@@ -190,6 +190,92 @@ const link=(mid,key)=>`#i/${mid}/${encodeURIComponent(key)}`;
 const noData=m=>`<div class="card empty"><b>У ${esc(m.name)} пока нет анализов</b>Пришлите PDF или распознанный текст — я добавлю их сюда.</div>`;
 const prHead=m=>`<div class="pr-only"><h2>${esc(m.name)} · анализы</h2><div class="mu">Распечатано ${fdate(new Date().toISOString().slice(0,10))}</div></div>`;
 
+/* ================= КОПИРОВАНИЕ (для WhatsApp: *жирный*, _курсив_, • списки) ================= */
+const CPI='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>';
+const cpb=(v,label)=>`<button class="cp" data-act="copy" data-v="${esc(v)}" title="Скопировать для WhatsApp">${CPI}${label===undefined?'Копировать':label}</button>`;
+const WB=s=>`*${s}*`,WI=s=>`_${s}_`;
+const MK={hi:'🔺',lo:'🔻',ok:'✅',na:'▫️'};
+const tv=r=>typeof r.v==='number'?nf(r.v):String(r.v);
+const tvu=r=>tv(r)+(r.u&&!r.key?.endsWith(' %')?' '+r.u:'');
+const tnorm=r=>(r.lo!=null||r.hi!=null)?` (норма ${rng(r)})`:'';
+const tline=(r,withPrev)=>{
+ const arr=D.by[r.m].series.get(r.key)||[],p=withPrev&&arr.length>1?arr[arr.length-2]:null;
+ let t=`• ${WB(r.key)} — ${WB(tvu(r))} ${MK[stat(r)]}${tnorm(r)}`;
+ if(p&&p!==r)t+=` · было ${tv(p)}${typeof p.v==='number'&&typeof r.v==='number'&&p.v!==r.v?(r.v>p.v?' ↑':' ↓'):''}`;
+ return t;
+};
+const lastLabs=(mid,d)=>[...new Set(D.by[mid].recs.filter(r=>r.d===d).map(r=>r.lab).filter(Boolean))].join(', ');
+const SIGN='_Справочно, не диагноз. Из приложения «Анализ семьи»._';
+function txtRep(mid){
+ const m=D.mem[mid],b=D.by[mid],L=latest(mid);
+ const bad=L.filter(r=>{const s=stat(r);return s==='hi'||s==='lo'}).sort((x,y)=>dist(y)-dist(x));
+ const good=L.filter(r=>stat(r)==='ok'),d=b.dates[0],lab=lastLabs(mid,d);
+ let t=`🩺 ${WB(m.name.toUpperCase())} · анализы\n📅 ${WI('последний: '+fdate(d)+(lab?' · '+lab:''))}\n`;
+ if(bad.length){t+=`\n${WB('⚠️ Вне нормы ('+bad.length+')')}\n`+bad.map(r=>tline(r,true)+(r.d!==d?` · ${fshort(r.d)}`:'')).join('\n')+'\n'}
+ else t+=`\n${WB('✅ Всё в норме')}\n`;
+ const bt=[],wr=[];b.series.forEach(arr=>{if(arr.length>1){const c=cmpr(arr[arr.length-2],arr[arr.length-1]);if(c.t==='better')bt.push(arr[arr.length-1].key);if(c.t==='worse')wr.push(arr[arr.length-1].key)}});
+ if(wr.length||bt.length){t+=`\n${WB('📈 С прошлого раза')}\n`;if(bt.length)t+=`• Лучше: ${bt.slice(0,8).join(', ')}${bt.length>8?' и ещё '+(bt.length-8):''}\n`;if(wr.length)t+=`• Хуже: ${wr.slice(0,8).join(', ')}${wr.length>8?' и ещё '+(wr.length-8):''}\n`}
+ t+=`\n${WB('📋 Итого')}\n• В норме: ${WB(good.length)} из ${good.length+bad.length}\n• Анализов сдано: ${b.dates.length}\n\n${SIGN}`;
+ return t;
+}
+function txtFam(){
+ let t=`🏠 ${WB('ЗДОРОВЬЕ СЕМЬИ')}\n📅 ${WI(fdate(new Date().toISOString().slice(0,10)))}\n`;
+ D.members.forEach(m=>{const b=D.by[m.id];if(!b.recs.length){t+=`\n👤 ${WB(m.name)}\n• нет анализов\n`;return}
+  const L=latest(m.id),bad=L.filter(r=>{const s=stat(r);return s==='hi'||s==='lo'}).sort((x,y)=>dist(y)-dist(x));
+  t+=`\n👤 ${WB(m.name)} · ${WI(fdate(b.dates[0]))}\n`;
+  t+=bad.length?`• Вне нормы: ${WB(bad.length)}\n`+bad.slice(0,5).map(r=>`   ${MK[stat(r)]} ${r.key} — ${tvu(r)}`).join('\n')+(bad.length>5?`\n   …и ещё ${bad.length-5}`:'')+'\n':`• ✅ Всё в норме\n`});
+ return t+`\n${SIGN}`;
+}
+function txtGroups(mid,rows,title){
+ const m=D.mem[mid],gs={};rows.forEach(r=>(gs[r.g]=gs[r.g]||[]).push(r));
+ let t=`📋 ${WB(m.name.toUpperCase())} · ${title}\n`;
+ Object.keys(gs).sort((x,y)=>gOrder(x)-gOrder(y)).forEach(g=>{t+=`\n${WB(g)}\n`+gs[g].sort((x,y)=>kbo(x)-kbo(y)).map(r=>tline(r,true)+(rows.dateEach?'':` · ${fshort(r.d)}`)).join('\n')+'\n'});
+ return t+`\n${SIGN}`;
+}
+function txtDate(mid,d){
+ const m=D.mem[mid],rs=D.by[mid].recs.filter(r=>r.d===d),lab=lastLabs(mid,d),gs={};
+ rs.forEach(r=>(gs[r.g]=gs[r.g]||[]).push(r));
+ let t=`📅 ${WB(m.name.toUpperCase())} · ${WB(fdate(d))}${lab?'\n'+WI(lab):''}\n`;
+ Object.keys(gs).sort((x,y)=>gOrder(x)-gOrder(y)).forEach(g=>{t+=`\n${WB(g)}\n`+gs[g].map(r=>tline(r,false)).join('\n')+'\n'});
+ return t+`\n${SIGN}`;
+}
+function txtInd(mid,key){
+ const m=D.mem[mid],arr=D.by[mid].series.get(key);if(!arr)return '';
+ const now=arr[arr.length-1],s=stat(now),kb=now.kb;
+ let t=`🔬 ${WB(key)} · ${m.name}\n\n${MK[s]} ${WB(tvu(now))}${tnorm(now)} · ${fshort(now.d)}${s==='hi'||s==='lo'?'\n'+WI(ST[s]+' · '+level(dist(now))):''}\n`;
+ if(arr.length>1)t+=`\n${WB('📈 История')}\n`+arr.slice().reverse().slice(0,8).map(r=>`• ${fshort(r.d)} — ${WB(tv(r))}${r.lab?' · '+r.lab:''}`).join('\n')+'\n';
+ const blk=kb&&(s==='hi'||s==='lo')&&kb[s];
+ if(blk){t+=`\n${WB('❓ Возможные причины')}\n`+blk.why.map(x=>'• '+x).join('\n')+`\n\n${WB('✅ Что можно сделать')}\n`+blk.do.map(x=>'• '+x).join('\n')+'\n';if(blk.who)t+=`\n${WB('👨‍⚕️ К кому обратиться')}\n• ${blk.who}\n`}
+ return t+`\n${SIGN}`;
+}
+function txtRecs(mid){
+ const m=D.mem[mid],L=latest(mid),map={};L.forEach(r=>map[r.key]=r);const sf=k=>map[k]?stat(map[k]):null;
+ const out=L.filter(r=>{const x=stat(r);return x==='hi'||x==='lo'}).sort((x,y)=>dist(y)-dist(x));
+ let t=`💡 ${WB(m.name.toUpperCase())} · советы\n`;
+ const hit=RULES.filter(r=>{try{return r.f(sf)}catch(e){return false}});
+ if(hit.length)t+=`\n${WB('🎯 Главное')}\n`+hit.map(r=>`• ${WB(r.t)}\n   ${r.p}`).join('\n')+'\n';
+ if(out.length){t+=`\n${WB('⚠️ Разбор отклонений')}\n`;out.forEach(r=>{const side=stat(r),blk=r.kb&&r.kb[side];t+=`\n${MK[side]} ${WB(r.key)} — ${tvu(r)}${tnorm(r)}\n`+(blk?'   Причины: '+blk.why.slice(0,4).join('; ')+'\n   Что делать: '+blk.do.slice(0,3).join('; ')+'\n'+(blk.who?'   К кому: '+blk.who+'\n':''):'')})}
+ else t+=`\n${WB('✅ Всё в норме')}\n`;
+ return t+`\n${SIGN}`;
+}
+function buildCopy(v){
+ const [k,mid,ex]=v.split('|'),x=ex?decodeURIComponent(ex):'';
+ if(k==='fam')return txtFam();
+ if(k==='rep')return txtRep(mid);
+ if(k==='ind')return txtInd(mid,x);
+ if(k==='dt')return txtDate(mid,x);
+ if(k==='recs')return txtRecs(mid);
+ if(k==='gr'){const rows=latest(mid).filter(r=>r.g===x);return txtGroups(mid,rows,x)}
+ if(k==='tb'){const q=nk(S.aq);let rows=latest(mid).filter(r=>!q||nk(r.key).includes(q)||nk(r.p||'').includes(q));
+  if(S.tf==='out')rows=rows.filter(r=>{const s=stat(r);return s==='hi'||s==='lo'});
+  return txtGroups(mid,rows,S.tf==='out'?'вне нормы':'последние значения')}
+ return '';
+}
+async function copyText(t){
+ try{await navigator.clipboard.writeText(t);return true}catch(_){}
+ try{const a=document.createElement('textarea');a.value=t;a.style.cssText='position:fixed;opacity:0;top:0';document.body.appendChild(a);a.focus();a.select();const ok=document.execCommand('copy');a.remove();return ok}catch(_){return false}
+}
+
 /* ================= ОБЗОР ================= */
 function vOverview(){
  const tests=D.members.reduce((n,m)=>n+D.by[m.id].dates.length,0);
@@ -207,7 +293,7 @@ function vOverview(){
  att.sort((x,y)=>dist(y.now)-dist(x.now));better.sort((x,y)=>y.dd-x.dd);worse.sort((x,y)=>y.dd-x.dd);
  let h=`<section class="hero"><h1>Здоровье семьи</h1><p>${D.members.length?'Сводка по последним анализам каждого. Нажмите на любую плитку, чтобы увидеть детали.':''}</p>
  <div class="kpis"><div class="kpi" data-go="#a/${S.mid}"><b>${D.members.length}</b><span>человек</span></div><div class="kpi" data-go="#a/${S.mid}"><b>${tests}</b><span>сдач анализов</span></div><div class="kpi" data-go="#d/${S.mid}"><b>${inds}</b><span>показателей</span></div><div class="kpi ${out?'warn':''}" data-go="#r/${S.mid}"><b>${out}</b><span>вне нормы</span></div></div></section>`;
- h+=`<div class="sec"><h2>Семья</h2><small>последние анализы</small></div><div class="mg">`;
+ h+=`<div class="sec"><h2>Семья</h2><small>последние анализы</small></div><div class="cprow">${cpb('fam','Копировать сводку семьи')}</div><div class="mg">`;
  D.members.forEach(m=>{
   const b=D.by[m.id],L=latest(m.id),ok=L.filter(r=>stat(r)==='ok').length,o=L.filter(r=>{const s=stat(r);return s==='hi'||s==='lo'}).length;
   let bt=0,wr=0;b.series.forEach(arr=>{if(arr.length>1){const c=cmpr(arr[arr.length-2],arr[arr.length-1]);if(c.t==='better')bt++;if(c.t==='worse')wr++}});
@@ -265,7 +351,7 @@ function vAnalyses(mid){
  if(!b.recs.length)return noData(m);
  const MODES=[['tb','Таблица'],['sv','Свод'],['date','Даты'],['group','Группы']];
  if(!MODES.some(x=>x[0]===S.am))S.am='tb';
- let h=prHead(m)+`<div class="tg modes">${MODES.map(x=>`<button class="${S.am===x[0]?'on':''}" data-act="am" data-v="${x[0]}">${x[1]}</button>`).join('')}</div>`;
+ let h=prHead(m)+`<div class="tg modes">${MODES.map(x=>`<button class="${S.am===x[0]?'on':''}" data-act="am" data-v="${x[0]}">${x[1]}</button>`).join('')}</div><div class="cprow">${cpb('rep|'+mid,'Копировать отчёт')}${S.am==='tb'?cpb('tb|'+mid,'Копировать таблицу'):''}</div>`;
  if(S.am==='sv')return h+vSummary(mid);
  const q=nk(S.aq);
  const ok=r=>!q||nk(r.key).includes(q)||nk(r.canon).includes(q)||nk(r.p).includes(q);
@@ -326,7 +412,7 @@ function vDetail(mid,ok){
   b.dates.forEach(d=>{
    const rs=b.recs.filter(r=>r.d===d&&ok(r));if(!rs.length)return;any=true;
    const o=rs.filter(r=>{const s=stat(r);return s==='hi'||s==='lo'}).length,lab=[...new Set(rs.map(r=>r.lab).filter(Boolean))].join(', ');
-   h+=`<div class="dcard"><div class="dc-h"><div><b>${fdate(d)}</b><small>${lab?esc(lab)+' · ':''}${rs.length} показ.</small></div><span class="pill ${o?'hi':'ok'}">${o?o+' вне нормы':'всё в норме'}</span></div>`;
+   h+=`<div class="dcard"><div class="dc-h"><div><b>${fdate(d)}</b><small>${lab?esc(lab)+' · ':''}${rs.length} показ.</small></div><span class="pill ${o?'hi':'ok'}">${o?o+' вне нормы':'всё в норме'}</span></div><div class="cprow in">${cpb('dt|'+mid+'|'+d)}</div>`;
    const dd=(D.docs||[]).filter(x=>x.m===mid&&x.d===d);if(dd.length)h+=`<div class="docs">${dd.map(docBtn).join('')}</div>`;
    const multiLab=[...new Set(rs.map(r=>r.lab))].length>1;
    const ps={};rs.forEach(r=>(ps[r.g]=ps[r.g]||[]).push(r));
@@ -335,7 +421,7 @@ function vDetail(mid,ok){
   });
  }else{
   const L=latest(mid).filter(ok);const gs={};L.forEach(r=>(gs[r.g]=gs[r.g]||[]).push(r));
-  Object.keys(gs).sort((x,y)=>gOrder(x)-gOrder(y)).forEach(g=>{any=true;h+=`<div class="dcard"><div class="dc-h"><div><b>${esc(g)}</b><small>последние значения</small></div></div>`+gs[g].map(r=>`<div class="tr" data-go="${link(r.m,r.key)}"><div class="n">${esc(r.key)}<div class="mu" style="font-size:11px;font-weight:500">${fshort(r.d)}</div></div><div class="v ${vcls(r)}">${val(r)}<small>${esc(r.u)}</small></div><div class="r">${rng(r)}</div><div class="dot ${stat(r)}"></div></div>`).join('')+'</div>'});
+  Object.keys(gs).sort((x,y)=>gOrder(x)-gOrder(y)).forEach(g=>{any=true;h+=`<div class="dcard"><div class="dc-h"><div><b>${esc(g)}</b><small>последние значения</small></div></div><div class="cprow in">${cpb('gr|'+mid+'|'+encodeURIComponent(g))}</div>`+gs[g].map(r=>`<div class="tr" data-go="${link(r.m,r.key)}"><div class="n">${esc(r.key)}<div class="mu" style="font-size:11px;font-weight:500">${fshort(r.d)}</div></div><div class="v ${vcls(r)}">${val(r)}<small>${esc(r.u)}</small></div><div class="r">${rng(r)}</div><div class="dot ${stat(r)}"></div></div>`).join('')+'</div>'});
  }
  if(!any)h+='<div class="card empty"><b>Ничего не найдено</b>Попробуйте другое название.</div>';
  return h;
@@ -352,7 +438,7 @@ function vDynamics(mid){
  const list=all.filter(x=>S.dg==='Все'||x.now.g===S.dg).sort((x,y)=>(dist(y.now)-dist(x.now))||(y.a.length-x.a.length));
  h+='<div class="dg">';
  list.forEach(x=>{const s=stat(x.now),c=cmpr(x.a.length>1?x.a[x.a.length-2]:null,x.now);
-  h+=`<div class="dn" data-go="${link(mid,x.k)}"><div class="dn-h"><b>${esc(x.k)}</b><span class="dot ${s}"></span></div><div class="big ${vcls(x.now)}">${val(x.now)} <small>${esc(x.now.u)}</small></div>${spark(x.a)}<div class="ft">${x.a.length} изм. · норма ${rng(x.now)}</div><div style="margin-top:6px">${c?deltaPill(c):''}</div></div>`});
+  h+=`<div class="dn" data-go="${link(mid,x.k)}"><div class="dn-h"><b>${esc(x.k)}</b><span class="dot ${s}"></span></div><div class="big ${vcls(x.now)}">${val(x.now)} <small>${esc(x.now.u)}</small></div>${spark(x.a)}<div class="ft">${x.a.length} изм. · норма ${rng(x.now)}</div><div style="margin-top:6px;display:flex;align-items:center;justify-content:space-between;gap:6px">${c?deltaPill(c):'<span></span>'}${cpb('ind|'+mid+'|'+encodeURIComponent(x.k),'')}</div></div>`});
  return h+'</div>';
 }
 
@@ -361,7 +447,7 @@ function vIndicator(mid,key){
  const m=D.mem[mid],arr=m&&D.by[mid].series.get(key);
  if(!arr)return `<button class="back" data-act="back">‹ Назад</button><div class="card empty"><b>Показатель не найден</b></div>`;
  const now=arr[arr.length-1],prev=arr.length>1?arr[arr.length-2]:null,s=stat(now),kb=now.kb,c=cmpr(prev,now);
- let h=`<button class="back" data-act="back">‹ Назад</button><div class="ip-h">${avHtml(m,1)}<div><h1>${esc(key)}</h1><small>${esc(m.name)} · ${esc(now.g)}</small></div></div>
+ let h=`<button class="back" data-act="back">‹ Назад</button><div class="ip-h">${avHtml(m,1)}<div><h1>${esc(key)}</h1><small>${esc(m.name)} · ${esc(now.g)}</small></div></div><div class="cprow">${cpb('ind|'+mid+'|'+encodeURIComponent(key),'Копировать показатель')}</div>
  <div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap"><div class="ip-big ${vcls(now)}">${val(now)} <small>${esc(now.u)}</small></div><div style="text-align:right"><span class="pill ${s}">${ST[s]}${s==='hi'||s==='lo'?' · '+level(dist(now)):''}</span><div class="mu" style="font-size:12.5px;margin-top:4px">норма ${rng(now)} ${esc(now.u)} · ${fdate(now.d)}</div></div></div>
  ${prev?`<div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">${deltaPill(c)}<span class="mu" style="font-size:13px">было ${val(prev)} ${esc(prev.u)} · ${fdate(prev.d)}</span></div>`:''}${barHtml(now,prev)}</div>`;
  h+=`<div class="card"><h3 style="font-size:15px;margin-bottom:6px">Динамика</h3>${bigChart(arr)}</div>`;
@@ -402,7 +488,7 @@ function vRecs(mid){
  const L=latest(mid),map={};L.forEach(r=>map[r.key]=r);
  const s=k=>map[k]?stat(map[k]):null;
  const out=L.filter(r=>{const x=stat(r);return x==='hi'||x==='lo'}).sort((x,y)=>dist(y)-dist(x));
- let h=prHead(m);
+ let h=prHead(m)+`<div class="cprow">${cpb('recs|'+mid,'Копировать советы')}</div>`;
  const hit=RULES.filter(r=>{try{return r.f(s)}catch(e){return false}});
  if(hit.length){h+=`<div class="sec"><h2>Главное</h2><small>сочетания показателей</small></div>`+hit.map(r=>`<div class="ins"><b>${esc(r.t)}</b><p>${esc(r.p)}</p><div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${r.k.filter(k=>map[k]).map(k=>`<span class="pill ${stat(map[k])}" style="cursor:pointer" data-go="${link(mid,k)}">${esc(k)} ${val(map[k])} · ${fshort(map[k].d)}</span>`).join('')}</div></div>`).join('')}
  else if(!out.length)h+=`<div class="ins g"><b>Все последние показатели в норме</b><p>Отклонений нет. Продолжайте здоровый образ жизни и повторяйте контроль по плану.</p></div>`;
@@ -413,7 +499,7 @@ function vRecs(mid){
    ${p?`<p style="margin:0 0 6px">${deltaPill(c)} <span class="mu" style="font-size:13px">было ${val(p)} → стало ${val(r)}</span></p>`:''}
    ${kb?`<p class="what">${esc(kb.what)}</p>`:''}
    ${blk?`<h4>Возможные причины</h4><ul>${blk.why.map(x=>`<li>${esc(x)}</li>`).join('')}</ul><h4>Что можно сделать</h4><ul>${blk.do.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>${blk.who?`<h4>К кому обратиться</h4><p style="margin:0;font-size:14px">${esc(blk.who)}</p>`:''}`:`<p class="mu" style="font-size:14px">Для этого показателя нет готового разбора. Сравните с референсом лаборатории и обсудите результат с врачом.</p>`}
-   <a class="go" data-go="${link(mid,r.key)}">История и график ›</a></div></details>`});
+   <a class="go" data-go="${link(mid,r.key)}">История и график ›</a> ${cpb('ind|'+mid+'|'+encodeURIComponent(r.key))}</div></details>`});
  }
  const bord=L.filter(r=>stat(r)==='ok'&&r.lo!=null&&r.hi!=null&&typeof r.v==='number').filter(r=>{const w=r.hi-r.lo;return r.v-r.lo<w*.08||r.hi-r.v<w*.08});
  if(bord.length)h+=`<div class="sec"><h2>На границе нормы</h2><small>стоит присмотреться</small></div><div class="card" style="padding:6px 14px">${bord.map(r=>`<div class="attn" data-go="${link(mid,r.key)}"><div class="nm"><b>${esc(r.key)}</b><small>норма ${rng(r)} ${esc(r.u)}</small></div><div class="vl"><b>${val(r)} <small>${esc(r.u)}</small></b></div></div>`).join('')}</div>`;
@@ -478,6 +564,7 @@ document.addEventListener('click',e=>{
   if(act==='dg'){S.dg=v;render();return}
   if(act==='back'){if(history.length>1)history.back();else location.hash='#'+S.from+'/'+S.mid;return}
   if(act==='doc'){downloadDoc(v,a);return}
+  if(act==='copy'){const t=buildCopy(v);copyText(t).then(ok=>{const o=a.innerHTML;a.classList.add('done');a.innerHTML=ok?CPI+'Скопировано ✓':'Не удалось';setTimeout(()=>{a.classList.remove('done');a.innerHTML=o},1600)});return}
   if(act==='print'){window.print();return}
   if(act==='lock'){lock();return}
   if(act==='refresh'){(async()=>{try{const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(x=>x.unregister()));const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}catch(_){}location.reload()})();return}

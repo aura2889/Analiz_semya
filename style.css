@@ -330,3 +330,14 @@ main{max-width:780px;margin:auto;padding:6px 16px calc(110px + env(safe-area-ins
 
 .mx td.c .dt{margin:0 0 2px;font-size:10.5px;font-weight:600;color:var(--tx,#334)}
 .mx .dh{font-size:11px}
+
+/* копирование */
+.cprow{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin:6px 2px 8px}
+.cprow.in{margin:6px 14px 0}
+.cp{display:inline-flex;align-items:center;gap:5px;font:inherit;font-size:11.5px;font-weight:600;color:var(--mu);background:transparent;border:1px solid var(--bd2);border-radius:999px;padding:4px 10px;cursor:pointer;line-height:1.2}
+.cp:active{background:var(--pl)}
+.cp.done{color:var(--p);border-color:var(--p3);background:var(--pl)}
+.cp svg{flex:none}
+.rb .cp{margin-left:8px;vertical-align:middle}
+.dn .cp{padding:4px 7px}
+@media print{.cp,.cprow{display:none!important}}
